@@ -78,5 +78,13 @@ namespace NocturnalBreach.Interactions
             transform.localPosition = pos;
             UpdateState();
         }
+
+        /// <summary>
+        /// Nudges the window sash upward when the monster forces it open from outside.
+        /// </summary>
+        public void ApplyMonsterPush(float pushNormalizedDelta)
+        {
+            ForceSetOpen(_normalizedOpen + pushNormalizedDelta);
+        }
     }
 }

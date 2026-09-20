@@ -93,5 +93,14 @@ namespace NocturnalBreach.Interactions
             transform.localEulerAngles = euler;
             UpdateState();
         }
+
+        /// <summary>
+        /// Nudges the door inward (towards openAngle) when the monster pounds/pushes against it.
+        /// </summary>
+        public void ApplyMonsterPush(float pushAngleDelta)
+        {
+            float targetAngle = Mathf.Clamp(_currentAngle - Mathf.Abs(pushAngleDelta), Mathf.Min(_closedAngle, _openAngle), Mathf.Max(_closedAngle, _openAngle));
+            ForceSetAngle(targetAngle);
+        }
     }
 }

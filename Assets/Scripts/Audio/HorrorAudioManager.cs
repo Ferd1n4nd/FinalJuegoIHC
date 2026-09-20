@@ -94,6 +94,16 @@ namespace NocturnalBreach.Audio
             StartAmbience();
         }
 
+        private float _targetAmbienceVolume = 0.35f;
+
+        private void Update()
+        {
+            if (_ambienceAudioSource != null)
+            {
+                _ambienceAudioSource.volume = Mathf.MoveTowards(_ambienceAudioSource.volume, _targetAmbienceVolume * _masterVolume, Time.deltaTime * 0.25f);
+            }
+        }
+
         private void OnEnable()
         {
             SubscribeEvents();
@@ -249,6 +259,7 @@ namespace NocturnalBreach.Audio
         private void HandleMonsterApproachingWindow()
         {
             LogDebug("Audio: Monster approaching window");
+            _targetAmbienceVolume = _ambienceVolume * 1.6f;
             if (_windowAudioSource != null && _windowStalkingClip != null)
             {
                 PlayClip(_windowAudioSource, _windowStalkingClip, 0.7f * _sfxVolume, false);
@@ -258,6 +269,7 @@ namespace NocturnalBreach.Audio
         private void HandleMonsterAtWindow()
         {
             LogDebug("Audio: Monster at window");
+            _targetAmbienceVolume = _ambienceVolume * 1.8f;
             PlayRandomClip(_windowAudioSource, _windowGlassScratchClips, 0.9f * _sfxVolume);
             if (_monsterAudioSource != null && _monsterAggressionGrowlClip != null)
             {
@@ -274,10 +286,11 @@ namespace NocturnalBreach.Audio
         private void HandleWindowDefenseSuccess()
         {
             LogDebug("Audio: Window defense success");
+            _targetAmbienceVolume = _ambienceVolume * 0.8f;
             StopSource(_windowAudioSource);
             if (_windowAudioSource != null && _windowMonsterReactionClip != null)
             {
-                PlayClip(_windowAudioSource, _windowMonsterReactionClip, 1.0f * _sfxVolume, false);
+                _windowAudioSource.PlayOneShot(_windowMonsterReactionClip, 1.0f * _sfxVolume);
             }
             PlayRandomClip(_windowAudioSource, _windowRetreatClips, 0.75f * _sfxVolume);
         }
@@ -298,6 +311,7 @@ namespace NocturnalBreach.Audio
         private void HandleMonsterUnderBed()
         {
             LogDebug("Audio: Monster under bed crawling/breathing");
+            _targetAmbienceVolume = _ambienceVolume * 1.6f;
             PlayRandomClip(_underBedAudioSource, _underBedCrawlingClips, 0.8f * _sfxVolume);
             if (_underBedAudioSource != null && _underBedBreathingClip != null)
             {
@@ -308,6 +322,7 @@ namespace NocturnalBreach.Audio
         private void HandleMonsterUnderBedReaching()
         {
             LogDebug("Audio: Monster under bed reaching upward");
+            _targetAmbienceVolume = _ambienceVolume * 1.8f;
             if (_underBedAudioSource != null && _underBedReachingClip != null)
             {
                 PlayClip(_underBedAudioSource, _underBedReachingClip, 1.0f * _sfxVolume, false);
@@ -317,10 +332,11 @@ namespace NocturnalBreach.Audio
         private void HandleUnderBedDefenseSuccess()
         {
             LogDebug("Audio: Under-bed repelled by flashlight");
+            _targetAmbienceVolume = _ambienceVolume * 0.8f;
             StopSource(_underBedAudioSource);
             if (_underBedAudioSource != null && _underBedFlashlightRepelClip != null)
             {
-                PlayClip(_underBedAudioSource, _underBedFlashlightRepelClip, 1.0f * _sfxVolume, false);
+                _underBedAudioSource.PlayOneShot(_underBedFlashlightRepelClip, 1.0f * _sfxVolume);
             }
             if (_underBedAudioSource != null && _underBedRetreatClip != null)
             {
@@ -335,12 +351,14 @@ namespace NocturnalBreach.Audio
         private void HandleMonsterApproachingDoor()
         {
             LogDebug("Audio: Monster approaching door down hallway");
+            _targetAmbienceVolume = _ambienceVolume * 1.6f;
             PlayRandomClip(_doorAudioSource, _doorApproachFootstepsClips, 0.75f * _sfxVolume);
         }
 
         private void HandleMonsterAtDoor()
         {
             LogDebug("Audio: Monster at door, handle rattle");
+            _targetAmbienceVolume = _ambienceVolume * 1.8f;
             if (_doorAudioSource != null && _doorHandleRattleClip != null)
             {
                 PlayClip(_doorAudioSource, _doorHandleRattleClip, 0.85f * _sfxVolume, false);
@@ -356,10 +374,11 @@ namespace NocturnalBreach.Audio
         private void HandleDoorDefenseSuccess()
         {
             LogDebug("Audio: Door defense success, creature retreating");
+            _targetAmbienceVolume = _ambienceVolume * 0.8f;
             StopSource(_doorAudioSource);
             if (_doorAudioSource != null && _doorDefenseSuccessClip != null)
             {
-                PlayClip(_doorAudioSource, _doorDefenseSuccessClip, 0.9f * _sfxVolume, false);
+                _doorAudioSource.PlayOneShot(_doorDefenseSuccessClip, 0.9f * _sfxVolume);
             }
             PlayRandomClip(_doorAudioSource, _doorRetreatFootstepsClips, 0.7f * _sfxVolume);
         }
@@ -380,6 +399,7 @@ namespace NocturnalBreach.Audio
         private void HandleMonsterRetreated()
         {
             LogDebug("Audio: Monster retreated, resetting threat audio");
+            _targetAmbienceVolume = _ambienceVolume;
             StopSource(_windowAudioSource);
             StopSource(_underBedAudioSource);
             StopSource(_doorAudioSource);

@@ -28,14 +28,14 @@ namespace NocturnalBreach.Core
         [SerializeField] private int _totalEventsTriggered = 0;
 
         [Header("Night Pacing & Escalation Parameters")]
-        [Tooltip("Minimum gap in seconds between monster events.")]
-        [SerializeField] private float _minEventInterval = 12.0f;
+        [Tooltip("Minimum gap in seconds between monster events at peak difficulty.")]
+        [SerializeField] private float _minEventInterval = 5.0f;
 
         [Tooltip("Maximum gap in seconds between monster events at start of night.")]
         [SerializeField] private float _maxEventInterval = 25.0f;
 
-        [Tooltip("Total duration of night survival in seconds (e.g. 360s = 6 minutes).")]
-        [SerializeField] private float _totalNightDuration = 360.0f;
+        [Tooltip("Total duration of night survival in seconds (300s = 5 minutes).")]
+        [SerializeField] private float _totalNightDuration = 300.0f;
 
         [Header("Event Selection Weights (Normalized dynamically)")]
         [Range(0.1f, 1.0f)]
@@ -46,6 +46,14 @@ namespace NocturnalBreach.Core
 
         [Range(0.1f, 1.0f)]
         [SerializeField] private float _doorWeight = 0.30f;
+
+        [Header("Victory Environment")]
+        [SerializeField] private Light _sunLight;
+        [SerializeField] private AudioSource _victoryAudioSource;
+        [SerializeField] private AudioClip _victoryBellClip;
+
+        public event Action OnNightSurvived;
+        public event Action<MonsterEventThreshold> OnMonsterBreachedGameOver;
 
         [Header("Debug Status (Inspector Read-Only)")]
         [SerializeField] private float _nextEventTimer = 0.0f;
@@ -105,7 +113,7 @@ namespace NocturnalBreach.Core
 
             if (_elapsedNightTime >= _totalNightDuration)
             {
-                _directorState = GameDirectorState.NightSurvived;
+                TriggerNightSurvivedVictory();
                 return;
             }
 
@@ -119,16 +127,53 @@ namespace NocturnalBreach.Core
             }
         }
 
+        private void TriggerNightSurvivedVictory()
+        {
+            _directorState = GameDirectorState.NightSurvived;
+            _lastResolutionReason = "5:00 AM — NIGHT SURVIVED! VICTORY!";
+
+            // Cease all monster attacks
+            if (_monsterBrain != null)
+            {
+                _monsterBrain.ForceRetreatToDormant();
+            }
+
+            // Morning dawn transition
+            if (_sunLight == null)
+            {
+                var dirLight = GameObject.Find("Directional Light");
+                if (dirLight != null) _sunLight = dirLight.GetComponent<Light>();
+            }
+
+            if (_sunLight != null)
+            {
+                _sunLight.color = new Color(1.0f, 0.90f, 0.72f);
+                _sunLight.intensity = 1.0f;
+            }
+
+            if (_victoryAudioSource != null && _victoryBellClip != null)
+            {
+                _victoryAudioSource.PlayOneShot(_victoryBellClip, 1.0f);
+            }
+
+            OnNightSurvived?.Invoke();
+            Debug.Log("[GameDirector] 5:00 AM SURVIVED! Dawn has broken.");
+        }
+
         private void ScheduleNextEvent()
         {
             _directorState = GameDirectorState.Pacing;
 
-            // Escalate pacing: as night progresses, gap between events decreases
-            float nightProgress = Mathf.Clamp01(_elapsedNightTime / _totalNightDuration);
-            float currentMaxInterval = Mathf.Lerp(_maxEventInterval, _minEventInterval + 4.0f, nightProgress);
-            float currentMinInterval = Mathf.Lerp(_minEventInterval, 6.0f, nightProgress);
+            // 5-minute pacing escalation:
+            // Progress 0.0 - 0.2 (0:00 - 1:00): calm, intervals 18 - 26s
+            // Progress 0.2 - 0.5 (1:00 - 2:30): moderate, intervals 12 - 18s
+            // Progress 0.5 - 0.8 (2:30 - 4:00): tense, intervals 8 - 14s
+            // Progress 0.8 - 1.0 (4:00 - 5:00): climax, intervals 5 - 9s
+            float p = Mathf.Clamp01(_elapsedNightTime / _totalNightDuration);
+            float minI = Mathf.Lerp(_maxEventInterval * 0.7f, _minEventInterval, p);
+            float maxI = Mathf.Lerp(_maxEventInterval, _minEventInterval + 4.0f, p);
 
-            _nextEventTimer = UnityEngine.Random.Range(currentMinInterval, currentMaxInterval);
+            _nextEventTimer = UnityEngine.Random.Range(minI, maxI);
         }
 
         private void TriggerNextMonsterEvent()
@@ -213,6 +258,7 @@ namespace NocturnalBreach.Core
         {
             _directorState = GameDirectorState.MonsterBreached;
             _lastResolutionReason = $"Monster Breached through {breachedThreshold}!";
+            OnMonsterBreachedGameOver?.Invoke(breachedThreshold);
         }
     }
 }

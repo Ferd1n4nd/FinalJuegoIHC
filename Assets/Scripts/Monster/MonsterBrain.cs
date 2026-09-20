@@ -50,18 +50,18 @@ namespace NocturnalBreach.Monster
         [Header("Window Behavior Parameters")]
         [Tooltip("Time in seconds spent moving from Distant -> Approach -> Near -> AtGlass.")]
         [SerializeField] private float _windowApproachDuration = 8.0f;
-        [Tooltip("Max seconds monster stands outside window before breaching if left open.")]
-        [SerializeField] private float _windowPatienceDuration = 10.0f;
+        [Tooltip("Max seconds monster forces window before breaching if player does not close it.")]
+        [SerializeField] private float _windowPatienceDuration = 8.0f;
         [Tooltip("Time in seconds for monster to retreat back to Window_Distant.")]
         [SerializeField] private float _windowRetreatDuration = 3.5f;
 
         [Header("Under-Bed Behavior Parameters")]
         [Tooltip("Time in seconds spent creeping under bed before reaching upward.")]
         [SerializeField] private float _underBedCrawlDuration = 7.0f;
-        [Tooltip("Seconds required of continuous flashlight illumination to repel (0.2s = immediate reaction).")]
-        [SerializeField] private float _requiredLightExposureDuration = 0.2f;
+        [Tooltip("Seconds required of continuous flashlight illumination to repel (0.05s = immediate reaction).")]
+        [SerializeField] private float _requiredLightExposureDuration = 0.05f;
         [Tooltip("Angle in degrees within flashlight beam considered illuminated.")]
-        [SerializeField] private float _flashlightDetectionAngle = 40.0f;
+        [SerializeField] private float _flashlightDetectionAngle = 45.0f;
         [Tooltip("Time in seconds for monster to retreat under floor.")]
         [SerializeField] private float _underBedRetreatDuration = 2.5f;
 
@@ -79,7 +79,7 @@ namespace NocturnalBreach.Monster
         [Tooltip("Seconds between monster pounds on the door during assault.")]
         [SerializeField] private float _doorPoundInterval = 1.8f;
         [Tooltip("Seconds between glass scratches/taps while at window.")]
-        [SerializeField] private float _windowTapInterval = 2.2f;
+        [SerializeField] private float _windowTapInterval = 1.8f;
 
         [Header("Cooldown Parameters")]
         [Tooltip("Post-retreat idle duration before returning to Dormant.")]
@@ -109,6 +109,8 @@ namespace NocturnalBreach.Monster
         private float _doorPoundTimer;
         private float _windowTapTimer;
         private float _lightExposureTimer;
+        private float _windowForceProgress;
+        private bool _windowWasOpenOnArrival;
         private Vector3 _moveStartPos;
         private Quaternion _moveStartRot;
         private Transform _moveTargetTransform;
@@ -218,6 +220,15 @@ namespace NocturnalBreach.Monster
             return true;
         }
 
+        /// <summary>
+        /// Instantly forces any active monster assault to cease and retreat (used on Night Survived / Victory).
+        /// </summary>
+        public void ForceRetreatToDormant()
+        {
+            if (_currentState == MonsterState.Dormant) return;
+            SetState(MonsterState.Cooldown);
+        }
+
         #endregion
 
         #region State Transitions
@@ -250,7 +261,9 @@ namespace NocturnalBreach.Monster
 
                 case MonsterState.AtWindow:
                     PlayAnimation("rage");
-                    _windowTapTimer = 0.6f;
+                    _windowTapTimer = 0.4f;
+                    _windowForceProgress = (_window != null) ? _window.NormalizedOpen : 0f;
+                    _windowWasOpenOnArrival = (_window != null && !_window.IsClosed);
                     OnMonsterAtWindow?.Invoke();
                     break;
 
@@ -374,18 +387,45 @@ namespace NocturnalBreach.Monster
                 OnWindowGlassContact?.Invoke();
             }
 
-            // Defense: Player physically closed the window
-            if (_window != null && _window.IsClosed)
+            // If the window was already wide open when monster arrived, breach quickly
+            if (_windowWasOpenOnArrival)
             {
-                OnWindowDefenseSuccess?.Invoke();
-                SetState(MonsterState.RetreatingFromWindow);
-                return;
-            }
+                if (_window != null && _window.IsClosed)
+                {
+                    OnWindowDefenseSuccess?.Invoke();
+                    SetState(MonsterState.RetreatingFromWindow);
+                    return;
+                }
 
-            // Failure: Window left open past patience duration
-            if (_stateTimer >= _windowPatienceDuration)
+                if (_stateTimer >= 3.5f)
+                {
+                    SetState(MonsterState.Breached);
+                    return;
+                }
+            }
+            else
             {
-                SetState(MonsterState.Breached);
+                // Monster progressively forces the window open from outside!
+                _windowForceProgress += (Time.deltaTime / _windowPatienceDuration);
+                if (_window != null)
+                {
+                    _window.ApplyMonsterPush(Time.deltaTime / _windowPatienceDuration);
+
+                    // Player pushed/closed the window back down!
+                    if (_stateTimer > 0.6f && _window.IsClosed)
+                    {
+                        OnWindowDefenseSuccess?.Invoke();
+                        SetState(MonsterState.RetreatingFromWindow);
+                        return;
+                    }
+
+                    // Window forced open past threshold -> Monster completes entry!
+                    if (_window.NormalizedOpen >= 0.88f || _windowForceProgress >= 1.0f)
+                    {
+                        SetState(MonsterState.Breached);
+                        return;
+                    }
+                }
             }
         }
 
@@ -442,24 +482,36 @@ namespace NocturnalBreach.Monster
 
             Vector3 lightPos = _flashlight.SpotLight.transform.position;
             Vector3 lightForward = _flashlight.SpotLight.transform.forward;
-            Vector3 targetPos = transform.position + Vector3.up * 0.35f;
 
-            Vector3 toTarget = targetPos - lightPos;
-            float distance = toTarget.magnitude;
+            // Target the visible reaching head/claws AND the body under the bed
+            Vector3 targetPos1 = new Vector3(-0.65f, 0.12f, 2.30f);
+            Vector3 targetPos2 = transform.position + Vector3.up * 0.15f;
 
-            if (distance <= _flashlight.SpotLight.range)
+            float dist1 = Vector3.Distance(lightPos, targetPos1);
+            float dist2 = Vector3.Distance(lightPos, targetPos2);
+            float range = _flashlight.SpotLight.range;
+
+            bool hit = false;
+            if (dist1 <= range)
             {
-                float angle = Vector3.Angle(lightForward, toTarget);
-                if (angle <= _flashlightDetectionAngle)
+                float angle1 = Vector3.Angle(lightForward, targetPos1 - lightPos);
+                if (angle1 <= Mathf.Max(_flashlightDetectionAngle, 50.0f)) hit = true;
+            }
+            if (!hit && dist2 <= range)
+            {
+                float angle2 = Vector3.Angle(lightForward, targetPos2 - lightPos);
+                if (angle2 <= Mathf.Max(_flashlightDetectionAngle, 50.0f)) hit = true;
+            }
+
+            if (hit)
+            {
+                _lightExposureTimer += Time.deltaTime;
+                if (_lightExposureTimer >= _requiredLightExposureDuration)
                 {
-                    _lightExposureTimer += Time.deltaTime;
-                    if (_lightExposureTimer >= _requiredLightExposureDuration)
-                    {
-                        OnUnderBedDefenseSuccess?.Invoke();
-                        SetState(MonsterState.RetreatingFromBed);
-                    }
-                    return;
+                    OnUnderBedDefenseSuccess?.Invoke();
+                    SetState(MonsterState.RetreatingFromBed);
                 }
+                return;
             }
 
             _lightExposureTimer = Mathf.Max(0f, _lightExposureTimer - Time.deltaTime);
@@ -488,15 +540,21 @@ namespace NocturnalBreach.Monster
         {
             _stateTimer += Time.deltaTime;
 
-            // Cadence for pounding against the door
+            // Cadence for pounding and physically forcing the door open
             _doorPoundTimer += Time.deltaTime;
             if (_doorPoundTimer >= _doorPoundInterval)
             {
                 _doorPoundTimer = 0f;
                 OnDoorImpact?.Invoke();
+
+                // Monster pushes the door inward!
+                if (_door != null)
+                {
+                    _door.ApplyMonsterPush(10.0f);
+                }
             }
 
-            // Check if door was forced open beyond breach angle
+            // Check if door was forced open beyond breach angle (-45 degrees)
             if (_door != null && _door.CurrentAngle <= _doorBreachAngleThreshold)
             {
                 SetState(MonsterState.Breached);

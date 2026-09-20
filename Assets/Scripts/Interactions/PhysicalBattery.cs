@@ -34,11 +34,28 @@ namespace NocturnalBreach.Interactions
         {
             _rigidbody = GetComponent<Rigidbody>();
             _grabbable = GetComponent<Grabbable>();
+
+            if (_rigidbody != null)
+            {
+                _rigidbody.useGravity = true;
+                _rigidbody.isKinematic = false;
+                _rigidbody.mass = 0.05f;
+                _rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            }
         }
 
         private void Update()
         {
             if (_isConsumed) return;
+
+            // If grabbed while parented to drawer, deparent to world space
+            if (_grabbable != null && _grabbable.SelectingPointsCount > 0)
+            {
+                if (transform.parent != null)
+                {
+                    transform.SetParent(null, true);
+                }
+            }
 
             // Check distance to the active flashlight in the scene
             var flashlight = PhysicalFlashlight.Instance;

@@ -14,8 +14,14 @@ namespace NocturnalBreach.Interactions
 
         [Header("Light Settings")]
         [SerializeField] private Light _spotLight;
-        [SerializeField] private bool _startsOn = true;
+        [SerializeField] private bool _startsOn = false;
         [SerializeField] private float _baseIntensity = 2.5f;
+
+        [Header("Diegetic Battery Indicator")]
+        [Tooltip("MeshRenderers for the 3 battery status LEDs on the flashlight barrel.")]
+        [SerializeField] private MeshRenderer _ledHigh; // Green (100% - 66%)
+        [SerializeField] private MeshRenderer _ledMid;  // Yellow (66% - 33%)
+        [SerializeField] private MeshRenderer _ledLow;  // Red (33% - 0%)
 
         [Header("Battery Mechanics")]
         [Tooltip("Battery level from 0 to 100.")]
@@ -84,6 +90,48 @@ namespace NocturnalBreach.Interactions
                 else if (_spotLight != null && _spotLight.enabled)
                 {
                     _spotLight.intensity = _baseIntensity;
+                }
+            }
+
+            UpdateBatteryLeds();
+        }
+
+        private void UpdateBatteryLeds()
+        {
+            if (_ledLow == null && _ledMid == null && _ledHigh == null) return;
+
+            bool showLow = _currentBattery > 0f;
+            bool showMid = _currentBattery > 33f;
+            bool showHigh = _currentBattery > 66f;
+
+            // When low battery, flicker the red LED
+            if (_currentBattery > 0f && _currentBattery <= _lowBatteryThreshold)
+            {
+                showLow = (Mathf.Sin(Time.time * 12f) > 0f);
+            }
+
+            SetLedState(_ledHigh, showHigh, new Color(0.1f, 1.0f, 0.2f));
+            SetLedState(_ledMid, showMid, new Color(1.0f, 0.85f, 0.1f));
+            SetLedState(_ledLow, showLow, new Color(1.0f, 0.15f, 0.1f));
+        }
+
+        private void SetLedState(MeshRenderer renderer, bool active, Color color)
+        {
+            if (renderer == null) return;
+            Material mat = Application.isPlaying ? renderer.material : renderer.sharedMaterial;
+            if (mat != null)
+            {
+                if (active)
+                {
+                    mat.SetColor("_BaseColor", color);
+                    mat.SetColor("_EmissionColor", color * 2.5f);
+                    mat.EnableKeyword("_EMISSION");
+                }
+                else
+                {
+                    mat.SetColor("_BaseColor", new Color(0.15f, 0.15f, 0.15f));
+                    mat.SetColor("_EmissionColor", Color.black);
+                    mat.DisableKeyword("_EMISSION");
                 }
             }
         }
