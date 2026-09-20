@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 30d148be126662f4f82d4f7e1208e775
+timeCreated: 1486842737
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/Pebbles.mat
+  uploadId: 161963

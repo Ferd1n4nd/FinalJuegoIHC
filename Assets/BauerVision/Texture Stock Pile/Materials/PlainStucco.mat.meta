@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 01dfa1b95c5f7c84b95539353c93f79e
+timeCreated: 1486844592
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/PlainStucco.mat
+  uploadId: 161963

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f087beaf8243b1343bd3feebc864d27d
+timeCreated: 1486841361
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/Meadow.mat
+  uploadId: 161963

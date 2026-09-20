@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 038b94e42963c0949b811969ca9d9b67
+timeCreated: 1486985410
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Plane.prefab
+  uploadId: 161963

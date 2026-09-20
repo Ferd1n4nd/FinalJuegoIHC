@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 983be3d14ef10f047a705f08b4b5f486
+timeCreated: 1486840611
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/Sidewalk.mat
+  uploadId: 161963

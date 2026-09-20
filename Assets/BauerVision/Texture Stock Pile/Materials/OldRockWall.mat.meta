@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: af0e7f8ed4235ad41a7f8d52483b4e1c
+timeCreated: 1486844261
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/OldRockWall.mat
+  uploadId: 161963

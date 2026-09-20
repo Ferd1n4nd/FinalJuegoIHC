@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c4ebfa280514b284aa13741c47b177a3
+timeCreated: 1486843441
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/Asphalt2.mat
+  uploadId: 161963

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 2846d6a6f9f8e8d459514565c591ee2f
+timeCreated: 1486842278
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/LightGround.mat
+  uploadId: 161963

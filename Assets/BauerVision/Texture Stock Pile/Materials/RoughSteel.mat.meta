@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 03e14b14f323dd0428ea06daf2ed617a
+timeCreated: 1486843209
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/RoughSteel.mat
+  uploadId: 161963

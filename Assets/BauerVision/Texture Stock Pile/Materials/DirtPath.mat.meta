@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: edfd9d3b78f75e048994a6704209d05d
+timeCreated: 1486841969
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/DirtPath.mat
+  uploadId: 161963

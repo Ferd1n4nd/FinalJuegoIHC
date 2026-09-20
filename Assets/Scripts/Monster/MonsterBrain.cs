@@ -1,0 +1,570 @@
+using System;
+using UnityEngine;
+using NocturnalBreach.Interactions;
+
+namespace NocturnalBreach.Monster
+{
+    public enum MonsterState
+    {
+        Dormant,
+        ApproachingWindow,
+        AtWindow,
+        RetreatingFromWindow,
+        UnderBedDormant,
+        UnderBedCrawling,
+        UnderBedReaching,
+        RetreatingFromBed,
+        ApproachingDoor,
+        AtDoor,
+        RetreatingFromDoor,
+        Breached,
+        Cooldown
+    }
+
+    public enum MonsterEventThreshold
+    {
+        None,
+        Window,
+        UnderBed,
+        Door
+    }
+
+    /// <summary>
+    /// Single Monster Brain controlling Monster Mutant 7's state machine,
+    /// threshold movement between staging points, animation cues, and defense resolution.
+    /// </summary>
+    [SelectionBase]
+    public class MonsterBrain : MonoBehaviour
+    {
+        [Header("References")]
+        [SerializeField] private MonsterStagingController _stagingController;
+        [SerializeField] private PhysicalVRWindow _window;
+        [SerializeField] private PhysicalVRDoor _door;
+        [SerializeField] private PhysicalFlashlight _flashlight;
+        [SerializeField] private Animator _animator;
+
+        [Header("State Tracking")]
+        [SerializeField] private MonsterState _currentState = MonsterState.Dormant;
+        [SerializeField] private MonsterEventThreshold _currentThreshold = MonsterEventThreshold.None;
+
+        [Header("Window Behavior Parameters")]
+        [Tooltip("Time in seconds spent moving from Distant -> Approach -> Near -> AtGlass.")]
+        [SerializeField] private float _windowApproachDuration = 8.0f;
+        [Tooltip("Max seconds monster stands outside window before breaching if left open.")]
+        [SerializeField] private float _windowPatienceDuration = 10.0f;
+        [Tooltip("Time in seconds for monster to retreat back to Window_Distant.")]
+        [SerializeField] private float _windowRetreatDuration = 3.5f;
+
+        [Header("Under-Bed Behavior Parameters")]
+        [Tooltip("Time in seconds spent creeping under bed before reaching upward.")]
+        [SerializeField] private float _underBedCrawlDuration = 7.0f;
+        [Tooltip("Seconds required of continuous flashlight illumination to repel.")]
+        [SerializeField] private float _requiredLightExposureDuration = 1.2f;
+        [Tooltip("Angle in degrees within flashlight beam considered illuminated.")]
+        [SerializeField] private float _flashlightDetectionAngle = 35.0f;
+        [Tooltip("Time in seconds for monster to retreat under floor.")]
+        [SerializeField] private float _underBedRetreatDuration = 3.0f;
+
+        [Header("Door Behavior Parameters")]
+        [Tooltip("Time in seconds monster spends approaching down hallway.")]
+        [SerializeField] private float _doorApproachDuration = 8.0f;
+        [Tooltip("Seconds the monster pounds/forces the door before retreating if player keeps it shut.")]
+        [SerializeField] private float _doorAssaultDuration = 9.0f;
+        [Tooltip("Angle beyond which the door is considered breached inward.")]
+        [SerializeField] private float _doorBreachAngleThreshold = -45.0f;
+        [Tooltip("Time in seconds for monster to retreat down hallway.")]
+        [SerializeField] private float _doorRetreatDuration = 4.0f;
+
+        [Header("Assault Cadence")]
+        [Tooltip("Seconds between monster pounds on the door during assault.")]
+        [SerializeField] private float _doorPoundInterval = 1.8f;
+        [Tooltip("Seconds between glass scratches/taps while at window.")]
+        [SerializeField] private float _windowTapInterval = 2.2f;
+
+        [Header("Cooldown Parameters")]
+        [Tooltip("Post-retreat idle duration before returning to Dormant.")]
+        [SerializeField] private float _cooldownDuration = 3.0f;
+
+        // Public Events for Audio / Haptics / GameDirector hooks
+        public event Action<MonsterEventThreshold> OnMonsterEventStarted;
+        public event Action OnMonsterApproachingWindow;
+        public event Action OnMonsterAtWindow;
+        public event Action OnWindowGlassContact;
+        public event Action OnWindowDefenseSuccess;
+
+        public event Action OnMonsterUnderBed;
+        public event Action OnMonsterUnderBedReaching;
+        public event Action OnUnderBedDefenseSuccess;
+
+        public event Action OnMonsterApproachingDoor;
+        public event Action OnMonsterAtDoor;
+        public event Action OnDoorImpact;
+        public event Action OnDoorDefenseSuccess;
+
+        public event Action OnMonsterRetreated;
+        public event Action<MonsterEventThreshold> OnMonsterBreached;
+
+        // Internal Timers & Targets
+        private float _stateTimer;
+        private float _doorPoundTimer;
+        private float _windowTapTimer;
+        private float _lightExposureTimer;
+        private Vector3 _moveStartPos;
+        private Quaternion _moveStartRot;
+        private Transform _moveTargetTransform;
+        private float _moveDuration;
+        private float _moveElapsed;
+
+        public MonsterState CurrentState => _currentState;
+        public MonsterEventThreshold CurrentThreshold => _currentThreshold;
+        public bool IsEventActive => _currentState != MonsterState.Dormant && _currentState != MonsterState.Cooldown && _currentState != MonsterState.Breached;
+
+        private void Awake()
+        {
+            if (_animator == null) _animator = GetComponent<Animator>();
+            if (_stagingController == null) _stagingController = FindAnyObjectByType<MonsterStagingController>();
+            if (_window == null) _window = FindAnyObjectByType<PhysicalVRWindow>();
+            if (_door == null) _door = FindAnyObjectByType<PhysicalVRDoor>();
+            if (_flashlight == null) _flashlight = FindAnyObjectByType<PhysicalFlashlight>();
+        }
+
+        private void Start()
+        {
+            SetState(MonsterState.Dormant);
+        }
+
+        private void Update()
+        {
+            UpdateMovementInterpolation();
+
+            switch (_currentState)
+            {
+                case MonsterState.Dormant:
+                    // Managed by GameDirector
+                    break;
+
+                // --- WINDOW BEHAVIOR ---
+                case MonsterState.ApproachingWindow:
+                    UpdateApproachingWindow();
+                    break;
+                case MonsterState.AtWindow:
+                    UpdateAtWindow();
+                    break;
+                case MonsterState.RetreatingFromWindow:
+                    UpdateRetreatingFromWindow();
+                    break;
+
+                // --- UNDER-BED BEHAVIOR ---
+                case MonsterState.UnderBedDormant:
+                    UpdateUnderBedDormant();
+                    break;
+                case MonsterState.UnderBedCrawling:
+                    UpdateUnderBedCrawling();
+                    break;
+                case MonsterState.UnderBedReaching:
+                    UpdateUnderBedReaching();
+                    break;
+                case MonsterState.RetreatingFromBed:
+                    UpdateRetreatingFromBed();
+                    break;
+
+                // --- DOOR BEHAVIOR ---
+                case MonsterState.ApproachingDoor:
+                    UpdateApproachingDoor();
+                    break;
+                case MonsterState.AtDoor:
+                    UpdateAtDoor();
+                    break;
+                case MonsterState.RetreatingFromDoor:
+                    UpdateRetreatingFromDoor();
+                    break;
+
+                case MonsterState.Cooldown:
+                    UpdateCooldown();
+                    break;
+
+                case MonsterState.Breached:
+                    // Terminal state for current round
+                    break;
+            }
+        }
+
+        #region Public Trigger APIs (invoked by GameDirector)
+
+        public bool TriggerWindowEvent()
+        {
+            if (IsEventActive) return false;
+            _currentThreshold = MonsterEventThreshold.Window;
+            SetState(MonsterState.ApproachingWindow);
+            OnMonsterEventStarted?.Invoke(_currentThreshold);
+            return true;
+        }
+
+        public bool TriggerUnderBedEvent()
+        {
+            if (IsEventActive) return false;
+            _currentThreshold = MonsterEventThreshold.UnderBed;
+            SetState(MonsterState.UnderBedDormant);
+            OnMonsterEventStarted?.Invoke(_currentThreshold);
+            return true;
+        }
+
+        public bool TriggerDoorEvent()
+        {
+            if (IsEventActive) return false;
+            _currentThreshold = MonsterEventThreshold.Door;
+            SetState(MonsterState.ApproachingDoor);
+            OnMonsterEventStarted?.Invoke(_currentThreshold);
+            return true;
+        }
+
+        #endregion
+
+        #region State Transitions
+
+        private void SetState(MonsterState newState)
+        {
+            _currentState = newState;
+            _stateTimer = 0f;
+
+            switch (_currentState)
+            {
+                case MonsterState.Dormant:
+                    _currentThreshold = MonsterEventThreshold.None;
+                    PlayAnimation("idle1");
+                    if (_stagingController != null && _stagingController.WindowDistant != null)
+                    {
+                        TeleportTo(_stagingController.WindowDistant);
+                    }
+                    break;
+
+                case MonsterState.ApproachingWindow:
+                    PlayAnimation("walk2");
+                    if (_stagingController != null)
+                    {
+                        TeleportTo(_stagingController.WindowDistant);
+                        StartInterpolatedMove(_stagingController.WindowAtGlass, _windowApproachDuration);
+                    }
+                    OnMonsterApproachingWindow?.Invoke();
+                    break;
+
+                case MonsterState.AtWindow:
+                    PlayAnimation("rage");
+                    _windowTapTimer = 0.6f;
+                    OnMonsterAtWindow?.Invoke();
+                    break;
+
+                case MonsterState.RetreatingFromWindow:
+                    PlayAnimation("gethit1");
+                    if (_stagingController != null)
+                    {
+                        StartInterpolatedMove(_stagingController.WindowDistant, _windowRetreatDuration);
+                    }
+                    break;
+
+                case MonsterState.UnderBedDormant:
+                    PlayAnimation("idle2");
+                    if (_stagingController != null)
+                    {
+                        TeleportTo(_stagingController.UnderBedDormant);
+                    }
+                    OnMonsterUnderBed?.Invoke();
+                    break;
+
+                case MonsterState.UnderBedCrawling:
+                    PlayAnimation("walk4");
+                    if (_stagingController != null)
+                    {
+                        StartInterpolatedMove(_stagingController.UnderBedReaching, _underBedCrawlDuration);
+                    }
+                    break;
+
+                case MonsterState.UnderBedReaching:
+                    PlayAnimation("attack2RLSpike");
+                    _lightExposureTimer = 0f;
+                    OnMonsterUnderBedReaching?.Invoke();
+                    break;
+
+                case MonsterState.RetreatingFromBed:
+                    PlayAnimation("gethit2");
+                    if (_stagingController != null)
+                    {
+                        StartInterpolatedMove(_stagingController.UnderBedDormant, _underBedRetreatDuration);
+                    }
+                    break;
+
+                case MonsterState.ApproachingDoor:
+                    PlayAnimation("walk3");
+                    if (_stagingController != null)
+                    {
+                        TeleportTo(_stagingController.DoorDistant);
+                        StartInterpolatedMove(_stagingController.DoorAtDoor, _doorApproachDuration);
+                    }
+                    OnMonsterApproachingDoor?.Invoke();
+                    break;
+
+                case MonsterState.AtDoor:
+                    PlayAnimation("attack4");
+                    _doorPoundTimer = 0.5f;
+                    OnMonsterAtDoor?.Invoke();
+                    break;
+
+                case MonsterState.RetreatingFromDoor:
+                    PlayAnimation("gethit4");
+                    if (_stagingController != null)
+                    {
+                        StartInterpolatedMove(_stagingController.DoorDistant, _doorRetreatDuration);
+                    }
+                    break;
+
+                case MonsterState.Cooldown:
+                    PlayAnimation("idle1");
+                    OnMonsterRetreated?.Invoke();
+                    break;
+
+                case MonsterState.Breached:
+                    PlayAnimation("attack1");
+                    OnMonsterBreached?.Invoke(_currentThreshold);
+                    break;
+            }
+        }
+
+        #endregion
+
+        #region State Update Routines
+
+        private void UpdateApproachingWindow()
+        {
+            _stateTimer += Time.deltaTime;
+
+            // Player can close the window during approach!
+            if (_window != null && _window.IsClosed)
+            {
+                OnWindowDefenseSuccess?.Invoke();
+                SetState(MonsterState.RetreatingFromWindow);
+                return;
+            }
+
+            if (_moveElapsed >= _moveDuration)
+            {
+                SetState(MonsterState.AtWindow);
+            }
+        }
+
+        private void UpdateAtWindow()
+        {
+            _stateTimer += Time.deltaTime;
+
+            // Cadence for scratching/tapping against glass
+            _windowTapTimer += Time.deltaTime;
+            if (_windowTapTimer >= _windowTapInterval)
+            {
+                _windowTapTimer = 0f;
+                OnWindowGlassContact?.Invoke();
+            }
+
+            // Defense: Player physically closed the window
+            if (_window != null && _window.IsClosed)
+            {
+                OnWindowDefenseSuccess?.Invoke();
+                SetState(MonsterState.RetreatingFromWindow);
+                return;
+            }
+
+            // Failure: Window left open past patience duration
+            if (_stateTimer >= _windowPatienceDuration)
+            {
+                SetState(MonsterState.Breached);
+            }
+        }
+
+        private void UpdateRetreatingFromWindow()
+        {
+            _stateTimer += Time.deltaTime;
+            if (_moveElapsed >= _moveDuration)
+            {
+                SetState(MonsterState.Cooldown);
+            }
+        }
+
+        private void UpdateUnderBedDormant()
+        {
+            _stateTimer += Time.deltaTime;
+            if (_stateTimer >= 2.0f)
+            {
+                SetState(MonsterState.UnderBedCrawling);
+            }
+        }
+
+        private void UpdateUnderBedCrawling()
+        {
+            _stateTimer += Time.deltaTime;
+
+            CheckFlashlightIllumination();
+
+            if (_moveElapsed >= _moveDuration)
+            {
+                SetState(MonsterState.UnderBedReaching);
+            }
+        }
+
+        private void UpdateUnderBedReaching()
+        {
+            _stateTimer += Time.deltaTime;
+
+            CheckFlashlightIllumination();
+
+            // If not repelled after 8s of reaching, breach under bed
+            if (_stateTimer >= 8.0f)
+            {
+                SetState(MonsterState.Breached);
+            }
+        }
+
+        private void CheckFlashlightIllumination()
+        {
+            if (_flashlight == null || !_flashlight.IsOn || _flashlight.SpotLight == null)
+            {
+                _lightExposureTimer = Mathf.Max(0f, _lightExposureTimer - Time.deltaTime);
+                return;
+            }
+
+            Vector3 lightPos = _flashlight.SpotLight.transform.position;
+            Vector3 lightForward = _flashlight.SpotLight.transform.forward;
+            Vector3 targetPos = transform.position + Vector3.up * 0.35f;
+
+            Vector3 toTarget = targetPos - lightPos;
+            float distance = toTarget.magnitude;
+
+            if (distance <= _flashlight.SpotLight.range)
+            {
+                float angle = Vector3.Angle(lightForward, toTarget);
+                if (angle <= _flashlightDetectionAngle)
+                {
+                    _lightExposureTimer += Time.deltaTime;
+                    if (_lightExposureTimer >= _requiredLightExposureDuration)
+                    {
+                        OnUnderBedDefenseSuccess?.Invoke();
+                        SetState(MonsterState.RetreatingFromBed);
+                    }
+                    return;
+                }
+            }
+
+            _lightExposureTimer = Mathf.Max(0f, _lightExposureTimer - Time.deltaTime);
+        }
+
+        private void UpdateRetreatingFromBed()
+        {
+            _stateTimer += Time.deltaTime;
+            if (_moveElapsed >= _moveDuration)
+            {
+                SetState(MonsterState.Cooldown);
+            }
+        }
+
+        private void UpdateApproachingDoor()
+        {
+            _stateTimer += Time.deltaTime;
+
+            if (_moveElapsed >= _moveDuration)
+            {
+                SetState(MonsterState.AtDoor);
+            }
+        }
+
+        private void UpdateAtDoor()
+        {
+            _stateTimer += Time.deltaTime;
+
+            // Cadence for pounding against the door
+            _doorPoundTimer += Time.deltaTime;
+            if (_doorPoundTimer >= _doorPoundInterval)
+            {
+                _doorPoundTimer = 0f;
+                OnDoorImpact?.Invoke();
+            }
+
+            // Check if door was forced open beyond breach angle
+            if (_door != null && _door.CurrentAngle <= _doorBreachAngleThreshold)
+            {
+                SetState(MonsterState.Breached);
+                return;
+            }
+
+            // Player held door closed through the entire assault duration!
+            if (_stateTimer >= _doorAssaultDuration)
+            {
+                if (_door == null || _door.IsClosed || _door.CurrentAngle > _doorBreachAngleThreshold)
+                {
+                    OnDoorDefenseSuccess?.Invoke();
+                    SetState(MonsterState.RetreatingFromDoor);
+                }
+            }
+        }
+
+        private void UpdateRetreatingFromDoor()
+        {
+            _stateTimer += Time.deltaTime;
+            if (_moveElapsed >= _moveDuration)
+            {
+                SetState(MonsterState.Cooldown);
+            }
+        }
+
+        private void UpdateCooldown()
+        {
+            _stateTimer += Time.deltaTime;
+            if (_stateTimer >= _cooldownDuration)
+            {
+                SetState(MonsterState.Dormant);
+            }
+        }
+
+        #endregion
+
+        #region Movement & Animation Helpers
+
+        private void TeleportTo(Transform target)
+        {
+            if (target != null)
+            {
+                transform.position = target.position;
+                transform.rotation = target.rotation;
+            }
+        }
+
+        private void StartInterpolatedMove(Transform target, float duration)
+        {
+            if (target == null) return;
+            _moveStartPos = transform.position;
+            _moveStartRot = transform.rotation;
+            _moveTargetTransform = target;
+            _moveDuration = Mathf.Max(0.01f, duration);
+            _moveElapsed = 0f;
+        }
+
+        private void UpdateMovementInterpolation()
+        {
+            if (_moveTargetTransform == null || _moveElapsed >= _moveDuration) return;
+
+            _moveElapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(_moveElapsed / _moveDuration);
+            // Smooth ease
+            float smoothT = Mathf.SmoothStep(0f, 1f, t);
+
+            transform.position = Vector3.Lerp(_moveStartPos, _moveTargetTransform.position, smoothT);
+            transform.rotation = Quaternion.Slerp(_moveStartRot, _moveTargetTransform.rotation, smoothT);
+        }
+
+        private void PlayAnimation(string stateName)
+        {
+            if (_animator != null && _animator.HasState(0, Animator.StringToHash(stateName)))
+            {
+                _animator.CrossFadeInFixedTime(stateName, 0.25f);
+            }
+        }
+
+        #endregion
+    }
+}

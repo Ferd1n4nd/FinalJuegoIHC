@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: f650c74626e55d74b80c843ff07683ab
+timeCreated: 1486842123
+licenseType: Store
+NativeFormatImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 82799
+  packageName: PBR Texture Lib
+  packageVersion: 1.0
+  assetPath: Assets/BauerVision/Texture Stock Pile/Materials/DriedMud.mat
+  uploadId: 161963
