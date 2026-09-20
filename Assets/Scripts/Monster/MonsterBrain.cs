@@ -58,12 +58,12 @@ namespace NocturnalBreach.Monster
         [Header("Under-Bed Behavior Parameters")]
         [Tooltip("Time in seconds spent creeping under bed before reaching upward.")]
         [SerializeField] private float _underBedCrawlDuration = 7.0f;
-        [Tooltip("Seconds required of continuous flashlight illumination to repel.")]
-        [SerializeField] private float _requiredLightExposureDuration = 1.2f;
+        [Tooltip("Seconds required of continuous flashlight illumination to repel (0.2s = immediate reaction).")]
+        [SerializeField] private float _requiredLightExposureDuration = 0.2f;
         [Tooltip("Angle in degrees within flashlight beam considered illuminated.")]
-        [SerializeField] private float _flashlightDetectionAngle = 35.0f;
+        [SerializeField] private float _flashlightDetectionAngle = 40.0f;
         [Tooltip("Time in seconds for monster to retreat under floor.")]
-        [SerializeField] private float _underBedRetreatDuration = 3.0f;
+        [SerializeField] private float _underBedRetreatDuration = 2.5f;
 
         [Header("Door Behavior Parameters")]
         [Tooltip("Time in seconds monster spends approaching down hallway.")]
@@ -323,7 +323,18 @@ namespace NocturnalBreach.Monster
                     break;
 
                 case MonsterState.Breached:
-                    PlayAnimation("attack1");
+                    PlayAnimation("rage");
+                    var mainCam = Camera.main;
+                    if (mainCam != null)
+                    {
+                        Vector3 faceForward = mainCam.transform.forward;
+                        faceForward.y = 0f;
+                        if (faceForward.sqrMagnitude > 0.01f) faceForward.Normalize();
+                        else faceForward = Vector3.forward;
+
+                        transform.position = mainCam.transform.position + faceForward * 0.75f - Vector3.up * 0.35f;
+                        transform.rotation = Quaternion.LookRotation(-faceForward, Vector3.up);
+                    }
                     OnMonsterBreached?.Invoke(_currentThreshold);
                     break;
             }
