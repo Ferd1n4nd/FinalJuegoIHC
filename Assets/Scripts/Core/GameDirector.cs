@@ -39,13 +39,13 @@ namespace NocturnalBreach.Core
 
         [Header("Event Selection Weights (Normalized dynamically)")]
         [Range(0.1f, 1.0f)]
-        [SerializeField] private float _windowWeight = 0.35f;
+        [SerializeField] private float _windowWeight = 0.3333f;
 
         [Range(0.1f, 1.0f)]
-        [SerializeField] private float _underBedWeight = 0.35f;
+        [SerializeField] private float _underBedWeight = 0.3333f;
 
         [Range(0.1f, 1.0f)]
-        [SerializeField] private float _doorWeight = 0.30f;
+        [SerializeField] private float _doorWeight = 0.3333f;
 
         [Header("Victory Environment")]
         [SerializeField] private Light _sunLight;

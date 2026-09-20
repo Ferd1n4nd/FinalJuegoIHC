@@ -57,13 +57,15 @@ namespace NocturnalBreach.Monster
 
         [Header("Under-Bed Behavior Parameters")]
         [Tooltip("Time in seconds spent creeping under bed before reaching upward.")]
-        [SerializeField] private float _underBedCrawlDuration = 7.0f;
+        [SerializeField] private float _underBedCrawlDuration = 2.5f;
+        [Tooltip("Seconds monster reaches from under bed before breaching if player does not illuminate (3.0s).")]
+        [SerializeField] private float _underBedReachTimeout = 3.0f;
         [Tooltip("Seconds required of continuous flashlight illumination to repel (0.05s = immediate reaction).")]
         [SerializeField] private float _requiredLightExposureDuration = 0.05f;
         [Tooltip("Angle in degrees within flashlight beam considered illuminated.")]
-        [SerializeField] private float _flashlightDetectionAngle = 45.0f;
+        [SerializeField] private float _flashlightDetectionAngle = 55.0f;
         [Tooltip("Time in seconds for monster to retreat under floor.")]
-        [SerializeField] private float _underBedRetreatDuration = 2.5f;
+        [SerializeField] private float _underBedRetreatDuration = 1.8f;
 
         [Header("Door Behavior Parameters")]
         [Tooltip("Time in seconds monster spends approaching down hallway.")]
@@ -361,14 +363,6 @@ namespace NocturnalBreach.Monster
         {
             _stateTimer += Time.deltaTime;
 
-            // Player can close the window during approach!
-            if (_window != null && _window.IsClosed)
-            {
-                OnWindowDefenseSuccess?.Invoke();
-                SetState(MonsterState.RetreatingFromWindow);
-                return;
-            }
-
             if (_moveElapsed >= _moveDuration)
             {
                 SetState(MonsterState.AtWindow);
@@ -441,7 +435,7 @@ namespace NocturnalBreach.Monster
         private void UpdateUnderBedDormant()
         {
             _stateTimer += Time.deltaTime;
-            if (_stateTimer >= 2.0f)
+            if (_stateTimer >= 1.0f)
             {
                 SetState(MonsterState.UnderBedCrawling);
             }
@@ -465,8 +459,8 @@ namespace NocturnalBreach.Monster
 
             CheckFlashlightIllumination();
 
-            // If not repelled after 8s of reaching, breach under bed
-            if (_stateTimer >= 8.0f)
+            // If not repelled after reach timeout (3.0s), breach under bed
+            if (_stateTimer >= _underBedReachTimeout)
             {
                 SetState(MonsterState.Breached);
             }
