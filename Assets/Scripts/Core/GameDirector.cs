@@ -110,6 +110,7 @@ namespace NocturnalBreach.Core
             }
 
             _elapsedNightTime += Time.deltaTime;
+            UpdateAmbientLightingProgression();
 
             if (_elapsedNightTime >= _totalNightDuration)
             {
@@ -127,8 +128,52 @@ namespace NocturnalBreach.Core
             }
         }
 
+        private void UpdateAmbientLightingProgression()
+        {
+            float p = Mathf.Clamp01(_elapsedNightTime / _totalNightDuration);
+
+            if (_sunLight == null)
+            {
+                var dirLight = GameObject.Find("Directional Light");
+                if (dirLight != null) _sunLight = dirLight.GetComponent<Light>();
+            }
+
+            if (_sunLight != null)
+            {
+                // Smoothly evolve the room from midnight to early dawn:
+                // 0.0 - 0.5 (12:00 - 2:30 AM): Pitch black night with cool dim moonlight
+                // 0.5 - 0.8 (2:30 - 4:00 AM): Deep twilight indigo
+                // 0.8 - 0.95 (4:00 - 4:45 AM): Early morning twilight
+                // 0.95 - 1.0 (4:45 - 5:00 AM): Pre-dawn warm horizon
+                Color midnightColor = new Color(0.20f, 0.28f, 0.55f);
+                Color twilightColor = new Color(0.40f, 0.35f, 0.60f);
+                Color preDawnColor = new Color(0.85f, 0.60f, 0.40f);
+
+                if (p < 0.5f)
+                {
+                    _sunLight.color = midnightColor;
+                    _sunLight.intensity = Mathf.Lerp(0.06f, 0.10f, p * 2f);
+                }
+                else if (p < 0.85f)
+                {
+                    float t = (p - 0.5f) / 0.35f;
+                    _sunLight.color = Color.Lerp(midnightColor, twilightColor, t);
+                    _sunLight.intensity = Mathf.Lerp(0.10f, 0.25f, t);
+                }
+                else
+                {
+                    float t = (p - 0.85f) / 0.15f;
+                    _sunLight.color = Color.Lerp(twilightColor, preDawnColor, t);
+                    _sunLight.intensity = Mathf.Lerp(0.25f, 0.55f, t);
+                }
+            }
+        }
+
         private void TriggerNightSurvivedVictory()
         {
+            // If monster already breached, death has absolute priority
+            if (_directorState == GameDirectorState.MonsterBreached) return;
+
             _directorState = GameDirectorState.NightSurvived;
             _lastResolutionReason = "5:00 AM — NIGHT SURVIVED! VICTORY!";
 
@@ -256,6 +301,9 @@ namespace NocturnalBreach.Core
 
         private void HandleMonsterBreached(MonsterEventThreshold breachedThreshold)
         {
+            // If night already survived, victory has priority — do not trigger game over
+            if (_directorState == GameDirectorState.NightSurvived) return;
+
             _directorState = GameDirectorState.MonsterBreached;
             _lastResolutionReason = $"Monster Breached through {breachedThreshold}!";
             OnMonsterBreachedGameOver?.Invoke(breachedThreshold);

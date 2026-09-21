@@ -884,11 +884,11 @@ PlayerSettings:
   activeInputHandler: 2
   windowsGamepadBackendHint: 0
   enableDirectStorage: 0
-  cloudProjectId: 80ee190e-2bcc-4f57-8c1d-9f005c8f7200
+  cloudProjectId: edace0d0-7c3f-4ec4-a8bd-296868fd394f
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
   projectName: FinalJuegoIHC
-  organizationId: cobbleverse785
+  organizationId: fchavezme
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
   hmiLoadingImage: {fileID: 0}

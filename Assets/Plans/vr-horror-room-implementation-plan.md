@@ -10,6 +10,52 @@
 
 ---
 
+# Game Mechanics
+
+## Core Gameplay Loop
+The player is trapped in a dark child's bedroom during a continuous 300-second (5-minute) survival night. A single entity (Monster Mutant 7) stalks and attacks via three physical thresholds:
+1. **The Window (North Exterior):** Monster approaches from outside and progressively forces the sliding sash open. Player must walk to the window and physically slide/push the sash shut to latch it, forcing the creature to retreat.
+2. **Under the Bed (West Floor):** Monster creeps beneath the mattress and extends clawed limbs upward over the rail. Player must grab the physical flashlight, physically crouch to floor level, and illuminate the creature with direct beam exposure to burn and repel it.
+3. **The Bedroom Door (South Wall):** Monster approaches down the corridor, rattles the handle, and violently pounds and shoves the door open. Player must physically grasp the door knob and hold/brace against monster push force until the creature gives up and retreats.
+
+Surviving 300 seconds triggers the 5:00 AM victory sequence (morning light, church bells, survival confirmation). If the monster completes entry through any threshold, a lethal jumpscare sequence immediately terminates the run (no HP bar, no second chances). The Game Director dynamically paces threats with equal baseline weights (Window 0.3333, UnderBed 0.3333, Door 0.3333) and strict anti-repetition dampening.
+
+## Controls and Input Methods
+- **Locomotion:** 100% room-scale physical walking within the physical play space (optional thumbstick snap-turn / fallback).
+- **Physical Hand Interaction:** Meta XR Interaction SDK dual modality (Touch Controllers and Hand Tracking pinch/grab).
+- **No HUD / No QTEs:** 100% diegetic interaction. Players do not press abstract buttons or follow UI prompts. All actions (grabbing the flashlight, flicking its toggle, sliding the window sash, gripping the door knob, pulling the nightstand drawer) are performed through natural physical grabbing and manipulation.
+
+---
+
+# UI
+- **Diegetic Design (No HUD):** There are zero floating canvas HUD elements or screen overlays during gameplay.
+- **Flashlight Battery Indicator:** 3 physical miniature LEDs embedded directly in the flashlight cylinder casing:
+  - Green LED (solid): 100% – 66% charge.
+  - Yellow LED (solid): 66% – 33% charge.
+  - Red LED (flickering): 33% – 0% charge.
+  - Unlit: 0% charge (beam dead; requires physical battery insertion).
+- **Nightstand Diegetic Alarm Clock:** 3D digital alarm clock on the nightstand showing current night progression toward 5:00 AM.
+- **Victory / Screamer Overlays:** In-world full-immersion post-process fade and 3D floating morning title upon 5:00 AM survival; instant red-eye camera snap and distortion upon breach.
+
+---
+
+# Key Asset & Context
+- **Scripts:**
+  - `NocturnalBreach.Monster.MonsterBrain`: State machine managing Dormant, ApproachingWindow, AtWindow, UnderBedDormant, UnderBedCrawling, UnderBedReaching, ApproachingDoor, AtDoor, Breached, Cooldown.
+  - `NocturnalBreach.Core.GameDirector`: 300s master timer, threshold selection (Window 0.3333, UnderBed 0.3333, Door 0.3333, anti-repeat).
+  - `NocturnalBreach.Interactions.PhysicalVRWindow`: Sash tracking, latching, `ApplyMonsterPush()`.
+  - `NocturnalBreach.Interactions.PhysicalVRDoor`: Door angle tracking, latching, `ApplyMonsterPush()`.
+  - `NocturnalBreach.Interactions.PhysicalVRDrawer`: Nightstand drawer sliding constraints (Z: 0.03m to 0.28m).
+  - `NocturnalBreach.Interactions.PhysicalFlashlight`: Diegetic battery drain, spot light emission, battery recharge trigger.
+  - `NocturnalBreach.Interactions.PhysicalBattery`: Physical replacement batteries (1 on nightstand, 3 inside drawer).
+  - `NocturnalBreach.Audio.HorrorAudioManager` & `NocturnalBreach.Haptics.HorrorHapticsManager`: Spatial 3D sound emitters and controller haptics.
+- **Interactive Props in Scene `Assets/cuarto.unity`:**
+  - `Door_Knob`: Dedicated BoxCollider, Kinematic Rigidbody, GrabInteractable + HandGrabInteractable pointing to `SimpleDoor_MainDoor_LOD0`.
+  - `Nightstand/Shelf/Pen`: Dedicated BoxCollider, Kinematic Rigidbody, GrabInteractable + HandGrabInteractable pointing to `Shelf`.
+  - `Flashlight_VR`: Grabbable prop with Spot Light cone, starts OFF.
+
+---
+
 # System Requirements Categorization Matrix
 
 Every system, parameter, and assumption in this implementation plan is explicitly categorized according to the project specifications:
@@ -543,6 +589,46 @@ Haptics communicate real physical events rather than generic rumble:
 - **Step 10.1**: Profile on Meta Quest 2 hardware using OVR Metrics Tool. Verify 72 FPS stability, draw calls < 100, and zero memory allocations in update loops.
   - *Assigned role:* developer
   - *Dependencies:* Step 9.1 | *Parallelizable:* No
+
+### Phase 11: Continuity & Hotfix Physical Verification
+- **Step 11.1**: Verify Window attack flow in Editor and standalone — confirm monster approaches from `WindowDistant` (Z=9.5) to `WindowAtGlass` (Z=4.45) without premature `IsClosed` cancellation in `UpdateApproachingWindow()`, forces sash open via `ApplyMonsterPush`, and retreats when sash is shut.
+  - *Assigned role:* explorer
+  - *Dependencies:* Step 10.1 | *Parallelizable:* Yes
+- **Step 11.2**: Verify Door knob interaction — confirm `Door_Knob` has active BoxCollider, kinematic Rigidbody, and Meta XR `GrabInteractable` + `HandGrabInteractable` pointing to `SimpleDoor_MainDoor_LOD0`, enabling natural handle grabbing without grabbing door leaf geometry.
+  - *Assigned role:* explorer
+  - *Dependencies:* Step 10.1 | *Parallelizable:* Yes
+- **Step 11.3**: Verify Drawer handle interaction — confirm `Nightstand/Shelf/Pen` has active BoxCollider, kinematic Rigidbody, and `GrabInteractable` + `HandGrabInteractable` pointing to `Shelf`, constrained along local Z (0.03m to 0.28m) without lateral jitter.
+  - *Assigned role:* explorer
+  - *Dependencies:* Step 10.1 | *Parallelizable:* Yes
+- **Step 11.4**: Verify Under-Bed pacing parameters and flashlight sensitivity — confirm crawl duration (2.5s), initial wait (1.0s), reach timeout (3.0s), light exposure requirement (0.05s), detection angle (55°), and retreat duration (1.8s) provide snappy, responsive defense.
+  - *Assigned role:* explorer
+  - *Dependencies:* Step 10.1 | *Parallelizable:* Yes
+- **Step 11.5**: Execute physical in-headset test on Meta Quest 2 hardware to transition status from "EDITOR VERIFIED" to "PHYSICALLY VERIFIED".
+  - *Assigned role:* developer
+  - *Dependencies:* Steps 11.1, 11.2, 11.3, 11.4 | *Parallelizable:* No
+
+### Phase 12: Standby & On-Demand Execution
+- **Step 12.1**: Await concrete instruction from user before modifying any scene, script, or configuration. Zero automatic or preventive changes.
+  - *Assigned role:* developer
+  - *Dependencies:* None | *Parallelizable:* Yes
+
+---
+
+# Verification & Testing
+
+### 1. Verification of Priority Hotfix Items
+- **Window Monster Appearance:**
+  - *Editor Verification:* Inspect `MonsterBrain.UpdateApproachingWindow()`. Verify absence of `IsClosed` cancellation check. Trigger `TriggerWindowEvent()` and confirm interpolated movement from (0, 0, 9.5) to (0, 0, 4.45), triggering `OnMonsterAtWindow` and advancing `_windowForceProgress`.
+  - *Physical Verification (Quest 2):* In headset, wait for window audio cue, look at North window, observe monster silhouette approaching glass and claws tapping, physically slide window down to shut; verify monster flinches and retreats into yard.
+- **Door Handle Grab:**
+  - *Editor Verification:* Inspect `Door_Knob` on `SimpleDoor_MainDoor_LOD0/Door_Wood/Door_Knob`. Verify BoxCollider center (0,0,0) size (0.16, 0.26, 0.20), Rigidbody `isKinematic=true`, `GrabInteractable._pointableElement` = `SimpleDoor_MainDoor_LOD0`, and `HandGrabInteractable._pointableElement` = `SimpleDoor_MainDoor_LOD0`. Confirm door leaf has no conflicting grab interactables.
+  - *Physical Verification (Quest 2):* Reach out with Touch Controller and tracked hand, place grip directly on the brass door knob, squeeze grab trigger / pinch fingers, and rotate door inward/outward smoothly.
+- **Drawer Handle Grab:**
+  - *Editor Verification:* Inspect `Nightstand/Shelf/Pen`. Verify BoxCollider center (0,0,0) size (0.14, 0.10, 0.10), Rigidbody `isKinematic=true`, `GrabInteractable._pointableElement` = `Shelf`, and `HandGrabInteractable._pointableElement` = `Shelf`. Confirm `OneGrabTranslateTransformer` constraints (MinZ=0.03, MaxZ=0.28, X=0, Y=0.48).
+  - *Physical Verification (Quest 2):* Reach out to nightstand, grip `Pen` handle, pull drawer outward to reveal 3 spare batteries, and push back shut with audio feedback.
+- **Under-Bed Speed & Flashlight Sensitivity:**
+  - *Editor Verification:* Verify `MonsterBrain` parameters: `_underBedCrawlDuration = 2.5f`, `_underBedInitialWait = 1.0f`, `_underBedReachTimeout = 3.0f`, `_requiredLightExposureDuration = 0.05f`, `_flashlightDetectionAngle = 55.0f`, `_underBedRetreatDuration = 1.8f`. Verify dual target testing (head/claws at (-0.65, 0.12, 2.30) and root body).
+  - *Physical Verification (Quest 2):* Upon hearing under-bed breathing/scratching, pick up flashlight, physically crouch down, aim spot beam under bed rail; verify monster reacts near-instantaneously (<0.1s exposure) and rapidly retreats.
 
 ---
 

@@ -1,11 +1,13 @@
 using System;
 using UnityEngine;
+using UnityEngine.XR;
 
 namespace NocturnalBreach.Interactions
 {
     /// <summary>
     /// Physical VR Flashlight component. Controls Spot Light beam, battery life,
-    /// battery depletion/recharge, and provides physical push-button & controller toggle.
+    /// battery depletion/recharge. Toggle is EXCLUSIVELY controlled by Meta Quest
+    /// Left Controller Button Y.
     /// </summary>
     [SelectionBase]
     public class PhysicalFlashlight : MonoBehaviour
@@ -31,13 +33,13 @@ namespace NocturnalBreach.Interactions
         [Tooltip("Threshold percentage below which light flickers (e.g. 25%).")]
         [SerializeField] private float _lowBatteryThreshold = 25f;
 
-        [Header("Physical Switch")]
+        [Header("Physical Switch Visual")]
         [SerializeField] private Transform _switchTransform;
         [SerializeField] private Vector3 _switchOnLocalPos = new Vector3(0f, 0.022f, -0.01f);
         [SerializeField] private Vector3 _switchOffLocalPos = new Vector3(0f, 0.026f, -0.01f);
 
         [Header("State")]
-        [SerializeField] private bool _isOn = true;
+        [SerializeField] private bool _isOn = false;
 
         public event Action<bool> OnFlashlightToggled;
         public event Action<float> OnBatteryChanged;
@@ -50,8 +52,9 @@ namespace NocturnalBreach.Interactions
         public float BatteryPercentage => Mathf.Clamp01(_currentBattery / 100f);
 
         private float _lastToggleTime;
-        private const float ToggleCooldown = 0.25f;
+        private const float ToggleCooldown = 0.20f;
         private float _flickerTimer;
+        private bool _wasSecondaryPressedLastFrame = false;
 
         private void Awake()
         {
@@ -73,6 +76,9 @@ namespace NocturnalBreach.Interactions
 
         private void Update()
         {
+            // Exclusive input: Meta Quest Left Controller Y button
+            CheckLeftYInput();
+
             if (_isOn && _currentBattery > 0f)
             {
                 _currentBattery = Mathf.Max(0f, _currentBattery - _batteryDrainRate * Time.deltaTime);
@@ -94,6 +100,61 @@ namespace NocturnalBreach.Interactions
             }
 
             UpdateBatteryLeds();
+        }
+
+        /// <summary>
+        /// Reads Left Controller Y button exclusively (Button.Two on LTouch / SecondaryButton in OpenXR / KeyCode.Y in Editor).
+        /// </summary>
+        private void CheckLeftYInput()
+        {
+            bool yDown = false;
+
+            // 1. OVRInput for Meta Quest Touch Controllers
+            #if UNITY_ANDROID || UNITY_EDITOR
+            try
+            {
+                if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.LTouch) ||
+                    OVRInput.GetDown(OVRInput.RawButton.Y))
+                {
+                    yDown = true;
+                }
+            }
+            catch
+            {
+                // Fallback to OpenXR InputDevices
+            }
+            #endif
+
+            // 2. OpenXR InputDevices fallback (SecondaryButton on Left Hand is Y)
+            if (!yDown)
+            {
+                InputDevice leftHand = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+                if (leftHand.isValid && leftHand.TryGetFeatureValue(CommonUsages.secondaryButton, out bool pressed))
+                {
+                    if (pressed && !_wasSecondaryPressedLastFrame)
+                    {
+                        yDown = true;
+                    }
+                    _wasSecondaryPressedLastFrame = pressed;
+                }
+                else
+                {
+                    _wasSecondaryPressedLastFrame = false;
+                }
+            }
+
+            // 3. Editor testing shortcut
+            #if UNITY_EDITOR
+            if (Input.GetKeyDown(KeyCode.Y))
+            {
+                yDown = true;
+            }
+            #endif
+
+            if (yDown)
+            {
+                Toggle();
+            }
         }
 
         private void UpdateBatteryLeds()
@@ -197,28 +258,22 @@ namespace NocturnalBreach.Interactions
 
         /// <summary>
         /// Replenishes the battery by the specified amount (default: 100%).
+        /// Does NOT toggle or turn on the light (exclusive to Left Controller Y).
         /// </summary>
         public bool Recharge(float amount = 100f)
         {
             _currentBattery = Mathf.Clamp(_currentBattery + amount, 0f, 100f);
             OnBatteryChanged?.Invoke(_currentBattery);
             OnBatteryRecharged?.Invoke();
-
-            // Auto-turn on if was previously held/on
-            if (!_isOn)
-            {
-                SetLightState(true);
-                OnFlashlightToggled?.Invoke(true);
-            }
             return true;
         }
 
         /// <summary>
-        /// Trigger hook for physical finger / poke contact on the button collider.
+        /// Disabled: Toggle is exclusively controlled by Meta Quest Left Controller Y button.
         /// </summary>
         public void OnPhysicalButtonPoked()
         {
-            Toggle();
+            // Intentionally no-op: no physical/touch/grab toggles allowed.
         }
     }
 }

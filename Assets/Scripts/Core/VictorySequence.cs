@@ -42,8 +42,15 @@ namespace NocturnalBreach.Core
         private void HandleNightSurvived()
         {
             if (_hasTriggered) return;
-            _hasTriggered = true;
 
+            // If monster already breached and killed the player, death has priority
+            var director = FindAnyObjectByType<GameDirector>();
+            if (director != null && director.DirectorState == GameDirectorState.MonsterBreached)
+            {
+                return;
+            }
+
+            _hasTriggered = true;
             StartCoroutine(ExecuteDawnTransition());
         }
 

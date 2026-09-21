@@ -25,7 +25,12 @@ namespace NocturnalBreach.Interactions
 
         private Rigidbody _rigidbody;
         private Grabbable _grabbable;
+        private Collider _collider;
+        private Collider _shelfCol;
+        private Collider _nightstandCol;
         private bool _isConsumed = false;
+        private bool _isRestingInDrawer = false;
+        private bool _hasBeenGrabbed = false;
 
         public float ChargeAmount => _chargeAmount;
         public bool IsConsumed => _isConsumed;
@@ -34,13 +39,37 @@ namespace NocturnalBreach.Interactions
         {
             _rigidbody = GetComponent<Rigidbody>();
             _grabbable = GetComponent<Grabbable>();
+            _collider = GetComponent<Collider>();
 
             if (_rigidbody != null)
             {
-                _rigidbody.useGravity = true;
-                _rigidbody.isKinematic = false;
                 _rigidbody.mass = 0.05f;
                 _rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+                // If parented to a drawer/shelf, remain kinematic and stable while resting
+                if (transform.parent != null)
+                {
+                    _isRestingInDrawer = true;
+                    _rigidbody.isKinematic = true;
+                    _rigidbody.useGravity = false;
+
+                    // Prevent overlap depenetration with shelf / nightstand colliders on startup
+                    _shelfCol = transform.parent.GetComponent<Collider>();
+                    if (_shelfCol != null && _collider != null)
+                    {
+                        Physics.IgnoreCollision(_collider, _shelfCol, true);
+                    }
+                    _nightstandCol = transform.parent.parent != null ? transform.parent.parent.GetComponent<Collider>() : null;
+                    if (_nightstandCol != null && _collider != null)
+                    {
+                        Physics.IgnoreCollision(_collider, _nightstandCol, true);
+                    }
+                }
+                else
+                {
+                    _rigidbody.useGravity = true;
+                    _rigidbody.isKinematic = false;
+                }
             }
         }
 
@@ -48,12 +77,37 @@ namespace NocturnalBreach.Interactions
         {
             if (_isConsumed) return;
 
-            // If grabbed while parented to drawer, deparent to world space
+            // When player grabs the battery
             if (_grabbable != null && _grabbable.SelectingPointsCount > 0)
             {
-                if (transform.parent != null)
+                if (_isRestingInDrawer)
                 {
-                    transform.SetParent(null, true);
+                    _isRestingInDrawer = false;
+
+                    // Restore physical collision with shelf and nightstand
+                    if (_shelfCol != null && _collider != null)
+                    {
+                        Physics.IgnoreCollision(_collider, _shelfCol, false);
+                    }
+                    if (_nightstandCol != null && _collider != null)
+                    {
+                        Physics.IgnoreCollision(_collider, _nightstandCol, false);
+                    }
+
+                    if (transform.parent != null)
+                    {
+                        transform.SetParent(null, true);
+                    }
+                }
+                _hasBeenGrabbed = true;
+            }
+            // Once grabbed and released, enable full dynamic physics
+            else if (_hasBeenGrabbed)
+            {
+                if (_rigidbody != null && _rigidbody.isKinematic)
+                {
+                    _rigidbody.isKinematic = false;
+                    _rigidbody.useGravity = true;
                 }
             }
 
