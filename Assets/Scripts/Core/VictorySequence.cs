@@ -104,7 +104,7 @@ namespace NocturnalBreach.Core
 
             // Create diegetic 3D text/plaque in front of the window
             CreateVictoryPlaque();
-            Debug.Log("[VictorySequence] 4:00 AM — YOU SURVIVED THE NIGHT!");
+            Debug.Log("[VictorySequence] 6:00 AM — YOU SURVIVED THE NIGHT!");
         }
 
         private void CreateVictoryPlaque()
@@ -131,7 +131,7 @@ namespace NocturnalBreach.Core
             textGO.transform.localScale = new Vector3(0.015f, 0.015f, 0.015f);
 
             var textMesh = textGO.AddComponent<TextMesh>();
-            textMesh.text = "4:00 AM\nNIGHT SURVIVED";
+            textMesh.text = "6:00 AM\nNIGHT SURVIVED";
             textMesh.alignment = TextAlignment.Center;
             textMesh.anchor = TextAnchor.MiddleCenter;
             textMesh.characterSize = 1.0f;

@@ -73,6 +73,23 @@ namespace NocturnalBreach.Interactions
             }
         }
 
+        private void OnDestroy()
+        {
+            RestoreCollision();
+        }
+
+        private void RestoreCollision()
+        {
+            if (_shelfCol != null && _collider != null)
+            {
+                Physics.IgnoreCollision(_collider, _shelfCol, false);
+            }
+            if (_nightstandCol != null && _collider != null)
+            {
+                Physics.IgnoreCollision(_collider, _nightstandCol, false);
+            }
+        }
+
         private void Update()
         {
             if (_isConsumed) return;

@@ -94,6 +94,7 @@ namespace NocturnalBreach.Core
         private void Start()
         {
             ScheduleNextEvent();
+            _nextEventTimer = 30.0f;
         }
 
         private void Update()
@@ -169,7 +170,7 @@ namespace NocturnalBreach.Core
             if (_directorState == GameDirectorState.MonsterBreached) return;
 
             _directorState = GameDirectorState.NightSurvived;
-            _lastResolutionReason = "4:00 AM — NIGHT SURVIVED! VICTORY!";
+            _lastResolutionReason = "6:00 AM — NIGHT SURVIVED! VICTORY!";
 
             // Cease all monster attacks
             if (_monsterBrain != null)
@@ -196,7 +197,7 @@ namespace NocturnalBreach.Core
             }
 
             OnNightSurvived?.Invoke();
-            Debug.Log("[GameDirector] 4:00 AM SURVIVED! Dawn has broken.");
+            Debug.Log("[GameDirector] 6:00 AM SURVIVED! Dawn has broken.");
         }
 
         private void ScheduleNextEvent()
