@@ -104,7 +104,7 @@ namespace NocturnalBreach.Core
 
             // Create diegetic 3D text/plaque in front of the window
             CreateVictoryPlaque();
-            Debug.Log("[VictorySequence] 5:00 AM — YOU SURVIVED THE NIGHT!");
+            Debug.Log("[VictorySequence] 4:00 AM — YOU SURVIVED THE NIGHT!");
         }
 
         private void CreateVictoryPlaque()
@@ -112,7 +112,8 @@ namespace NocturnalBreach.Core
             var plaque = GameObject.CreatePrimitive(PrimitiveType.Quad);
             plaque.name = "Victory_Plaque";
             plaque.transform.position = new Vector3(0f, 1.80f, 3.85f);
-            plaque.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+            // Face south towards the player inside the bedroom without mirroring
+            plaque.transform.rotation = Quaternion.Euler(0f, 0f, 0f);
             plaque.transform.localScale = new Vector3(1.4f, 0.45f, 1.0f);
             Object.DestroyImmediate(plaque.GetComponent<Collider>());
 
@@ -130,7 +131,7 @@ namespace NocturnalBreach.Core
             textGO.transform.localScale = new Vector3(0.015f, 0.015f, 0.015f);
 
             var textMesh = textGO.AddComponent<TextMesh>();
-            textMesh.text = "5:00 AM\nNIGHT SURVIVED";
+            textMesh.text = "4:00 AM\nNIGHT SURVIVED";
             textMesh.alignment = TextAlignment.Center;
             textMesh.anchor = TextAnchor.MiddleCenter;
             textMesh.characterSize = 1.0f;

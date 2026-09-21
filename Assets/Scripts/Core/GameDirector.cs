@@ -28,14 +28,8 @@ namespace NocturnalBreach.Core
         [SerializeField] private int _totalEventsTriggered = 0;
 
         [Header("Night Pacing & Escalation Parameters")]
-        [Tooltip("Minimum gap in seconds between monster events at peak difficulty.")]
-        [SerializeField] private float _minEventInterval = 5.0f;
-
-        [Tooltip("Maximum gap in seconds between monster events at start of night.")]
-        [SerializeField] private float _maxEventInterval = 25.0f;
-
-        [Tooltip("Total duration of night survival in seconds (300s = 5 minutes).")]
-        [SerializeField] private float _totalNightDuration = 300.0f;
+        [Tooltip("Total duration of night survival in seconds (240s = 4 minutes).")]
+        [SerializeField] private float _totalNightDuration = 240.0f;
 
         [Header("Event Selection Weights (Normalized dynamically)")]
         [Range(0.1f, 1.0f)]
@@ -175,7 +169,7 @@ namespace NocturnalBreach.Core
             if (_directorState == GameDirectorState.MonsterBreached) return;
 
             _directorState = GameDirectorState.NightSurvived;
-            _lastResolutionReason = "5:00 AM — NIGHT SURVIVED! VICTORY!";
+            _lastResolutionReason = "4:00 AM — NIGHT SURVIVED! VICTORY!";
 
             // Cease all monster attacks
             if (_monsterBrain != null)
@@ -202,21 +196,38 @@ namespace NocturnalBreach.Core
             }
 
             OnNightSurvived?.Invoke();
-            Debug.Log("[GameDirector] 5:00 AM SURVIVED! Dawn has broken.");
+            Debug.Log("[GameDirector] 4:00 AM SURVIVED! Dawn has broken.");
         }
 
         private void ScheduleNextEvent()
         {
             _directorState = GameDirectorState.Pacing;
 
-            // 5-minute pacing escalation:
-            // Progress 0.0 - 0.2 (0:00 - 1:00): calm, intervals 18 - 26s
-            // Progress 0.2 - 0.5 (1:00 - 2:30): moderate, intervals 12 - 18s
-            // Progress 0.5 - 0.8 (2:30 - 4:00): tense, intervals 8 - 14s
-            // Progress 0.8 - 1.0 (4:00 - 5:00): climax, intervals 5 - 9s
+            // 4-minute pacing escalation:
+            // Progress 0.0 - 0.25 (0:00 - 1:00): calm, intervals 16 - 22s
+            // Progress 0.25 - 0.50 (1:00 - 2:00): moderate, intervals 11 - 16s
+            // Progress 0.50 - 0.75 (2:00 - 3:00): tense, intervals 8 - 12s
+            // Progress 0.75 - 1.00 (3:00 - 4:00) FINAL MINUTE ESCALATION:
+            //   3:00 - 3:30 (p: 0.75 - 0.875): fast, intervals 5 - 8s
+            //   3:30 - 4:00 (p: 0.875 - 1.0): frantic climax, intervals 3.5 - 6s
             float p = Mathf.Clamp01(_elapsedNightTime / _totalNightDuration);
-            float minI = Mathf.Lerp(_maxEventInterval * 0.7f, _minEventInterval, p);
-            float maxI = Mathf.Lerp(_maxEventInterval, _minEventInterval + 4.0f, p);
+            float minI;
+            float maxI;
+
+            if (p < 0.75f)
+            {
+                // First 3 minutes: controlled pacing
+                float subP = p / 0.75f; // 0 to 1 across first 3 mins
+                minI = Mathf.Lerp(16.0f, 8.0f, subP);
+                maxI = Mathf.Lerp(22.0f, 12.0f, subP);
+            }
+            else
+            {
+                // Final minute (3:00 - 4:00): desperate monster assault
+                float finalP = (p - 0.75f) / 0.25f; // 0 to 1 across final minute
+                minI = Mathf.Lerp(5.0f, 3.5f, finalP);
+                maxI = Mathf.Lerp(8.0f, 5.5f, finalP);
+            }
 
             _nextEventTimer = UnityEngine.Random.Range(minI, maxI);
         }

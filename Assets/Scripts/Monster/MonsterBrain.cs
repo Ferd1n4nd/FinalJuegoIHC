@@ -223,6 +223,17 @@ namespace NocturnalBreach.Monster
         }
 
         /// <summary>
+        /// Triggered when the player attempts to physically step out of the bedroom into the perimeter.
+        /// Monster instantly breaches and attacks.
+        /// </summary>
+        public void TriggerPerimeterEscapeDeath()
+        {
+            if (_currentState == MonsterState.Breached) return;
+            _currentThreshold = MonsterEventThreshold.Window;
+            SetState(MonsterState.Breached);
+        }
+
+        /// <summary>
         /// Instantly forces any active monster assault to cease and retreat (used on Night Survived / Victory).
         /// </summary>
         public void ForceRetreatToDormant()
@@ -245,10 +256,8 @@ namespace NocturnalBreach.Monster
                 case MonsterState.Dormant:
                     _currentThreshold = MonsterEventThreshold.None;
                     PlayAnimation("idle1");
-                    if (_stagingController != null && _stagingController.WindowDistant != null)
-                    {
-                        TeleportTo(_stagingController.WindowDistant);
-                    }
+                    // Teleport to hidden lair completely out of window sightline
+                    TeleportToHiddenLair();
                     break;
 
                 case MonsterState.ApproachingWindow:
@@ -334,6 +343,7 @@ namespace NocturnalBreach.Monster
 
                 case MonsterState.Cooldown:
                     PlayAnimation("idle1");
+                    TeleportToHiddenLair();
                     OnMonsterRetreated?.Invoke();
                     break;
 
@@ -587,6 +597,13 @@ namespace NocturnalBreach.Monster
         #endregion
 
         #region Movement & Animation Helpers
+
+        private void TeleportToHiddenLair()
+        {
+            // Position behind the North-West exterior wall corner, completely outside window & door sightlines
+            transform.position = new Vector3(-8.5f, 0f, 6.5f);
+            transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+        }
 
         private void TeleportTo(Transform target)
         {

@@ -53,10 +53,10 @@ namespace NocturnalBreach.Core
         {
             if (_timeText == null) return;
 
-            // 300 seconds total = 300 minutes (5 hours: 12:00 AM to 5:00 AM)
+            // 240 seconds total = 240 minutes (4 hours: 12:00 AM to 4:00 AM)
             // Exactly 1 second = 1 minute in game world
-            float totalMinutes = progress * 300f;
-            int totalMinsInt = Mathf.Min(300, Mathf.FloorToInt(totalMinutes));
+            float totalMinutes = progress * 240f;
+            int totalMinsInt = Mathf.Min(240, Mathf.FloorToInt(totalMinutes));
 
             int hoursPassed = totalMinsInt / 60;
             int minutesInHour = totalMinsInt % 60;
@@ -67,7 +67,7 @@ namespace NocturnalBreach.Core
 
             if (_director != null && _director.DirectorState == GameDirectorState.NightSurvived)
             {
-                timeString = "5:00\nAM";
+                timeString = "4:00\nAM";
             }
 
             _timeText.text = timeString;

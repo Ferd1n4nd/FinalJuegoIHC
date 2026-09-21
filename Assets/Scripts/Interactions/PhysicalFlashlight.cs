@@ -55,10 +55,13 @@ namespace NocturnalBreach.Interactions
         private const float ToggleCooldown = 0.20f;
         private float _flickerTimer;
         private bool _wasSecondaryPressedLastFrame = false;
+        private Oculus.Interaction.Grabbable _grabbable;
 
         private void Awake()
         {
             Instance = this;
+
+            _grabbable = GetComponent<Oculus.Interaction.Grabbable>();
 
             if (_spotLight == null)
             {
@@ -76,7 +79,7 @@ namespace NocturnalBreach.Interactions
 
         private void Update()
         {
-            // Exclusive input: Meta Quest Left Controller Y button
+            // Exclusive input: Meta Quest Left Controller Y button (ONLY when flashlight is currently grabbed)
             CheckLeftYInput();
 
             if (_isOn && _currentBattery > 0f)
@@ -104,9 +107,14 @@ namespace NocturnalBreach.Interactions
 
         /// <summary>
         /// Reads Left Controller Y button exclusively (Button.Two on LTouch / SecondaryButton in OpenXR / KeyCode.Y in Editor).
+        /// STRICT CONDITION: Only toggles if the flashlight is CURRENTLY GRABBED by the player.
         /// </summary>
         private void CheckLeftYInput()
         {
+            // If the flashlight is not grabbed, button Y does nothing
+            bool isGrabbed = (_grabbable != null && _grabbable.SelectingPointsCount > 0);
+            if (!isGrabbed) return;
+
             bool yDown = false;
 
             // 1. OVRInput for Meta Quest Touch Controllers

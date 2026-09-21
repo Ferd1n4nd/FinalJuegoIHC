@@ -78,27 +78,53 @@ namespace NocturnalBreach.Core
             if (locomotor != null) locomotor.SetActive(false);
 
             // =========================================================
-            // FASE 1 — JUMPSCARE CERCANO (Face / Chest right in front)
+            // FASE 1 — JUMPSCARE AGRESIVO TIPO FOXY (Abalanzarse hacia la cámara)
             // =========================================================
             var monster = GameObject.Find("Base mesh MonsterMutant7 skin1");
             if (monster != null)
             {
-                // Align monster directly in front of player viewpoint
-                // Eyes/Face of MonsterMutant7 are at local Y ~ 1.65m
-                Vector3 monsterTargetPos = camPos + camFwd * 0.72f;
-                monsterTargetPos.y = camPos.y - 1.50f;
-
-                monster.transform.position = monsterTargetPos;
-                monster.transform.rotation = Quaternion.LookRotation(-camFwd, Vector3.up);
-
+                // Play fast aggressive attack animation
                 var animator = monster.GetComponent<Animator>();
                 if (animator != null)
                 {
-                    animator.CrossFadeInFixedTime("rage", 0.05f);
+                    animator.CrossFadeInFixedTime("attack1", 0.02f);
+                }
+
+                // Monster leaps from 2.8m away right into the player's face (0.42m)
+                Vector3 startPos = camPos + camFwd * 2.8f;
+                startPos.y = camPos.y - 1.45f;
+
+                Vector3 closeImpactPos = camPos + camFwd * 0.42f;
+                closeImpactPos.y = camPos.y - 1.48f; // Align eyes/snarl right at camera level
+
+                Quaternion monsterFaceCamRot = Quaternion.LookRotation(-camFwd, Vector3.up);
+
+                monster.transform.position = startPos;
+                monster.transform.rotation = monsterFaceCamRot;
+
+                // High-speed aggressive leap forward (0.35 seconds)
+                float leapElapsed = 0f;
+                float leapDuration = 0.35f;
+
+                while (leapElapsed < leapDuration)
+                {
+                    leapElapsed += Time.deltaTime;
+                    float t = Mathf.Clamp01(leapElapsed / leapDuration);
+                    // Fast ease-in curve for physical pounce momentum
+                    float curve = t * t;
+                    monster.transform.position = Vector3.Lerp(startPos, closeImpactPos, curve);
+                    monster.transform.rotation = monsterFaceCamRot;
+                    yield return null;
+                }
+
+                monster.transform.position = closeImpactPos;
+                if (animator != null)
+                {
+                    animator.CrossFadeInFixedTime("rage", 0.02f);
                 }
             }
 
-            // Audio jumpscare roar
+            // Audio jumpscare blast at impact
             if (_screamerRoarClip != null)
             {
                 AudioSource.PlayClipAtPoint(_screamerRoarClip, camPos, _screamerVolume);
@@ -110,7 +136,12 @@ namespace NocturnalBreach.Core
                 _hapticsManager.TriggerPulse(HapticTargetHand.Both, 1.0f, 0.45f);
             }
 
-            // Create blood / red overlay quad attached to camera
+            // Brief visceral moment with monster face right at camera (0.15s)
+            yield return new WaitForSeconds(0.15f);
+
+            // =========================================================
+            // FASE 2 — SANGRE / PANTALLA ROJA (Red surge -> dark crimson)
+            // =========================================================
             GameObject bloodOverlay = GameObject.CreatePrimitive(PrimitiveType.Quad);
             bloodOverlay.name = "Blood_Death_Overlay";
             Object.DestroyImmediate(bloodOverlay.GetComponent<Collider>());
@@ -118,12 +149,12 @@ namespace NocturnalBreach.Core
             if (cam != null)
             {
                 bloodOverlay.transform.SetParent(cam.transform, false);
-                bloodOverlay.transform.localPosition = new Vector3(0f, 0f, 0.22f);
+                bloodOverlay.transform.localPosition = new Vector3(0f, 0f, 0.20f);
                 bloodOverlay.transform.localRotation = Quaternion.identity;
-                bloodOverlay.transform.localScale = new Vector3(1.2f, 0.9f, 1.0f);
+                bloodOverlay.transform.localScale = new Vector3(1.4f, 1.1f, 1.0f);
             }
 
-            // Transparent URP Unlit Material for blood overlay
+            // Transparent URP Unlit Material for blood overlay (renderQueue = 3000)
             var urpUnlit = Shader.Find("Universal Render Pipeline/Unlit");
             Material bloodMat = new Material(urpUnlit != null ? urpUnlit : Shader.Find("Unlit/Color"));
             bloodMat.SetFloat("_Surface", 1f); // Transparent
@@ -132,32 +163,26 @@ namespace NocturnalBreach.Core
             bloodMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             bloodMat.SetInt("_ZWrite", 0);
             bloodMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            bloodMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            bloodMat.renderQueue = 3000;
             bloodMat.SetColor("_BaseColor", new Color(0.70f, 0.02f, 0.02f, 0f));
             bloodOverlay.GetComponent<MeshRenderer>().sharedMaterial = bloodMat;
 
-            // Player sees the monster face-to-face for 0.4 seconds before the blood strike
-            yield return new WaitForSeconds(0.40f);
-
-            // =========================================================
-            // FASE 2 — SANGRE / PANTALLA ROJA (Red surge -> dark crimson)
-            // =========================================================
             float bloodElapsed = 0f;
-            float surgeDuration = 0.20f;
-            Color deepBlood = new Color(0.72f, 0.02f, 0.02f, 0.90f);
+            float surgeDuration = 0.18f;
+            Color deepBlood = new Color(0.75f, 0.02f, 0.02f, 0.92f);
 
             // Fast blood surge
             while (bloodElapsed < surgeDuration)
             {
                 bloodElapsed += Time.deltaTime;
                 float t = Mathf.Clamp01(bloodElapsed / surgeDuration);
-                bloodMat.SetColor("_BaseColor", new Color(deepBlood.r, deepBlood.g, deepBlood.b, t * 0.90f));
+                bloodMat.SetColor("_BaseColor", new Color(deepBlood.r, deepBlood.g, deepBlood.b, t * 0.92f));
                 yield return null;
             }
 
-            // Slower decay into dark ominous crimson/black
+            // Fade into dark ominous crimson/black
             float fadeElapsed = 0f;
-            float fadeDuration = 1.0f;
+            float fadeDuration = 0.85f;
             Color darkCrimson = new Color(0.04f, 0.005f, 0.005f, 0.98f);
 
             while (fadeElapsed < fadeDuration)
@@ -171,13 +196,15 @@ namespace NocturnalBreach.Core
             bloodMat.SetColor("_BaseColor", darkCrimson);
 
             // =========================================================
-            // FASE 3 — GAME OVER (Animated diegetic death title)
+            // FASE 3 — GAME OVER (Renderizado garantizado por encima de todo)
             // =========================================================
+            // Positioned closer to camera than blood overlay (Z=0.15m vs Z=0.20m)
+            // RenderQueue = 4000 (Overlay queue) with depth test Off so nothing can occlude it
             GameObject gameOverGO = new GameObject("GameOver_Text");
             if (cam != null)
             {
                 gameOverGO.transform.SetParent(cam.transform, false);
-                gameOverGO.transform.localPosition = new Vector3(0f, 0f, 0.35f);
+                gameOverGO.transform.localPosition = new Vector3(0f, 0f, 0.15f);
                 gameOverGO.transform.localRotation = Quaternion.identity;
                 gameOverGO.transform.localScale = Vector3.one;
             }
@@ -186,22 +213,28 @@ namespace NocturnalBreach.Core
             textMesh.text = "GAME OVER";
             textMesh.alignment = TextAlignment.Center;
             textMesh.anchor = TextAnchor.MiddleCenter;
-            textMesh.fontSize = 52;
-            textMesh.characterSize = 0.006f;
-            Color textColor = new Color(0.85f, 0.08f, 0.08f, 0f);
+            textMesh.fontSize = 54;
+            textMesh.characterSize = 0.0028f;
+            Color textColor = new Color(0.95f, 0.15f, 0.15f, 1f);
             textMesh.color = textColor;
 
-            // Animate GAME OVER text appearance and gentle ominous pulse
+            // Ensure text material renders in Overlay queue above the blood quad
+            var textRenderer = gameOverGO.GetComponent<MeshRenderer>();
+            if (textRenderer != null && textRenderer.material != null)
+            {
+                textRenderer.material.renderQueue = 4000;
+            }
+
+            // Animate GAME OVER text entrance and breathing pulse
             float textElapsed = 0f;
-            float textDuration = 3.0f;
+            float textDuration = 3.2f;
 
             while (textElapsed < textDuration)
             {
                 textElapsed += Time.deltaTime;
-                float alpha = Mathf.Clamp01(textElapsed / 0.8f);
+                float alpha = Mathf.Clamp01(textElapsed / 0.5f);
 
-                // Subtle slow breathing pulse
-                float pulse = 1.0f + 0.04f * Mathf.Sin(textElapsed * 3f);
+                float pulse = 1.0f + 0.05f * Mathf.Sin(textElapsed * 3f);
                 gameOverGO.transform.localScale = new Vector3(pulse, pulse, 1.0f);
 
                 textMesh.color = new Color(textColor.r, textColor.g, textColor.b, alpha);
