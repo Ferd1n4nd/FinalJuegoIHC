@@ -1,4 +1,5 @@
 using UnityEngine;
+using Oculus.Interaction;
 
 namespace NocturnalBreach.Interactions
 {
@@ -28,6 +29,7 @@ namespace NocturnalBreach.Interactions
         [SerializeField] private bool _isClosed = true;
         [SerializeField] private float _currentAngle = 0.0f;
         [SerializeField] private float _normalizedOpen = 0.0f;
+        [SerializeField] private bool _isUnderMonsterAttack = false;
 
         public event System.Action OnDoorClosed;
         public event System.Action OnDoorOpened;
@@ -36,11 +38,24 @@ namespace NocturnalBreach.Interactions
         public bool IsClosed => _isClosed;
         public float CurrentAngle => _currentAngle;
         public float NormalizedOpen => _normalizedOpen;
+        public bool IsUnderMonsterAttack => _isUnderMonsterAttack;
+
+        public bool IsGrabbed => (_grabbable != null && _grabbable.SelectingPointsCount > 0) ||
+                                 (_knobGrabbable != null && _knobGrabbable.SelectingPointsCount > 0);
 
         private float _lastReportedAngle;
+        private Grabbable _grabbable;
+        private Grabbable _knobGrabbable;
 
         private void Awake()
         {
+            _grabbable = GetComponent<Grabbable>();
+            var knob = transform.Find("Door_Wood/Door_Knob");
+            if (knob != null)
+            {
+                _knobGrabbable = knob.GetComponent<Grabbable>();
+            }
+
             _lastReportedAngle = transform.localEulerAngles.y;
             UpdateState();
         }
@@ -94,12 +109,24 @@ namespace NocturnalBreach.Interactions
             UpdateState();
         }
 
+        public void SetMonsterAttackState(bool underAttack)
+        {
+            _isUnderMonsterAttack = underAttack;
+        }
+
         /// <summary>
         /// Nudges the door inward (towards openAngle) when the monster pounds/pushes against it.
+        /// If the player is actively grabbing/holding the door or knob, strong physical resistance is applied.
         /// </summary>
         public void ApplyMonsterPush(float pushAngleDelta)
         {
-            float targetAngle = Mathf.Clamp(_currentAngle - Mathf.Abs(pushAngleDelta), Mathf.Min(_closedAngle, _openAngle), Mathf.Max(_closedAngle, _openAngle));
+            float effectiveDelta = pushAngleDelta;
+            if (IsGrabbed)
+            {
+                effectiveDelta *= 0.35f; // Player actively holding door closed resists 65% of force
+            }
+
+            float targetAngle = Mathf.Clamp(_currentAngle - Mathf.Abs(effectiveDelta), Mathf.Min(_closedAngle, _openAngle), Mathf.Max(_closedAngle, _openAngle));
             ForceSetAngle(targetAngle);
         }
     }

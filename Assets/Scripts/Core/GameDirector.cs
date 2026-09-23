@@ -230,7 +230,7 @@ namespace NocturnalBreach.Core
                 maxI = Mathf.Lerp(8.0f, 5.5f, finalP);
             }
 
-            _nextEventTimer = UnityEngine.Random.Range(minI, maxI);
+            _nextEventTimer = UnityEngine.Random.Range(minI, maxI) * 1.20f;
         }
 
         private void TriggerNextMonsterEvent()

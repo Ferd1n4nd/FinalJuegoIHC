@@ -49,17 +49,17 @@ namespace NocturnalBreach.Monster
 
         [Header("Window Behavior Parameters")]
         [Tooltip("Time in seconds spent moving from Distant -> Approach -> Near -> AtGlass.")]
-        [SerializeField] private float _windowApproachDuration = 8.0f;
+        [SerializeField] private float _windowApproachDuration = 10.4f;
         [Tooltip("Max seconds monster forces window before breaching if player does not close it.")]
-        [SerializeField] private float _windowPatienceDuration = 8.0f;
+        [SerializeField] private float _windowPatienceDuration = 10.4f;
         [Tooltip("Time in seconds for monster to retreat back to Window_Distant.")]
         [SerializeField] private float _windowRetreatDuration = 3.5f;
 
         [Header("Under-Bed Behavior Parameters")]
         [Tooltip("Time in seconds spent creeping under bed before reaching upward.")]
-        [SerializeField] private float _underBedCrawlDuration = 2.5f;
-        [Tooltip("Seconds monster reaches from under bed before breaching if player does not illuminate (3.0s).")]
-        [SerializeField] private float _underBedReachTimeout = 3.0f;
+        [SerializeField] private float _underBedCrawlDuration = 3.25f;
+        [Tooltip("Seconds monster reaches from under bed before breaching if player does not illuminate (3.9s).")]
+        [SerializeField] private float _underBedReachTimeout = 3.9f;
         [Tooltip("Seconds required of continuous flashlight illumination to repel (0.05s = immediate reaction).")]
         [SerializeField] private float _requiredLightExposureDuration = 0.05f;
         [Tooltip("Angle in degrees within flashlight beam considered illuminated.")]
@@ -71,9 +71,9 @@ namespace NocturnalBreach.Monster
 
         [Header("Door Behavior Parameters")]
         [Tooltip("Time in seconds monster spends approaching down hallway.")]
-        [SerializeField] private float _doorApproachDuration = 8.0f;
+        [SerializeField] private float _doorApproachDuration = 10.4f;
         [Tooltip("Seconds the monster pounds/forces the door before retreating if player keeps it shut.")]
-        [SerializeField] private float _doorAssaultDuration = 9.0f;
+        [SerializeField] private float _doorAssaultDuration = 11.7f;
         [Tooltip("Angle beyond which the door is considered breached inward.")]
         [SerializeField] private float _doorBreachAngleThreshold = -45.0f;
         [Tooltip("Time in seconds for monster to retreat down hallway.")]
@@ -81,9 +81,9 @@ namespace NocturnalBreach.Monster
 
         [Header("Assault Cadence")]
         [Tooltip("Seconds between monster pounds on the door during assault.")]
-        [SerializeField] private float _doorPoundInterval = 1.8f;
+        [SerializeField] private float _doorPoundInterval = 2.34f;
         [Tooltip("Seconds between glass scratches/taps while at window.")]
-        [SerializeField] private float _windowTapInterval = 1.8f;
+        [SerializeField] private float _windowTapInterval = 2.34f;
 
         [Header("Cooldown Parameters")]
         [Tooltip("Post-retreat idle duration before returning to Dormant.")]
@@ -137,6 +137,12 @@ namespace NocturnalBreach.Monster
         private void Start()
         {
             SetState(MonsterState.Dormant);
+        }
+
+        private void OnDisable()
+        {
+            if (_door != null) _door.SetMonsterAttackState(false);
+            if (_window != null) _window.SetMonsterAttackState(false);
         }
 
         private void Update()
@@ -334,11 +340,13 @@ namespace NocturnalBreach.Monster
                 case MonsterState.AtDoor:
                     PlayAnimation("attack4");
                     _doorPoundTimer = 0.5f;
+                    if (_door != null) _door.SetMonsterAttackState(true);
                     OnMonsterAtDoor?.Invoke();
                     break;
 
                 case MonsterState.RetreatingFromDoor:
                     PlayAnimation("gethit4");
+                    if (_door != null) _door.SetMonsterAttackState(false);
                     if (_stagingController != null)
                     {
                         StartInterpolatedMove(_stagingController.DoorDistant, _doorRetreatDuration);
@@ -347,12 +355,16 @@ namespace NocturnalBreach.Monster
 
                 case MonsterState.Cooldown:
                     PlayAnimation("idle1");
+                    if (_door != null) _door.SetMonsterAttackState(false);
+                    if (_window != null) _window.SetMonsterAttackState(false);
                     TeleportToHiddenLair();
                     OnMonsterRetreated?.Invoke();
                     break;
 
                 case MonsterState.Breached:
                     PlayAnimation("rage");
+                    if (_door != null) _door.SetMonsterAttackState(false);
+                    if (_window != null) _window.SetMonsterAttackState(false);
                     var mainCam = Camera.main;
                     if (mainCam != null)
                     {
@@ -397,8 +409,8 @@ namespace NocturnalBreach.Monster
 
             if (_window != null)
             {
-                // Monster forces the window open from outside during assault
-                float pushDelta = Time.deltaTime / 5.5f;
+                // Monster forces the window open from outside during assault (adjusted for 30% longer duration)
+                float pushDelta = Time.deltaTime / 7.15f;
                 _window.ApplyMonsterPush(pushDelta);
 
                 // Window forced open past threshold -> Monster completes entry!
@@ -449,7 +461,7 @@ namespace NocturnalBreach.Monster
         private void UpdateUnderBedDormant()
         {
             _stateTimer += Time.deltaTime;
-            if (_stateTimer >= 1.0f)
+            if (_stateTimer >= 1.3f)
             {
                 SetState(MonsterState.UnderBedCrawling);
             }

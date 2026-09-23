@@ -53,6 +53,11 @@ namespace NocturnalBreach.Haptics
         [Range(0f, 1f)] [SerializeField] private float _flashlightClickAmplitude = 0.25f;
         [SerializeField] private float _flashlightClickDuration = 0.05f;
 
+        [Header("Struggle / Physical Resistance Haptics")]
+        [Range(0f, 1f)] [SerializeField] private float _struggleHapticAmplitude = 0.38f;
+        [SerializeField] private float _strugglePulseDuration = 0.06f;
+        [SerializeField] private float _strugglePulseInterval = 0.12f;
+
         [Header("Safety & Master Controls")]
         [SerializeField] private bool _enableHaptics = true;
         [Range(0f, 1f)] [SerializeField] private float _masterHapticsScale = 1.0f;
@@ -60,10 +65,42 @@ namespace NocturnalBreach.Haptics
 
         private Coroutine _leftHapticRoutine;
         private Coroutine _rightHapticRoutine;
+        private float _struggleTimer;
 
         private void Awake()
         {
             FindReferencesIfNull();
+            _struggleTimer = _strugglePulseInterval;
+        }
+
+        private void Update()
+        {
+            UpdateStruggleHaptics();
+        }
+
+        private void UpdateStruggleHaptics()
+        {
+            if (!_enableHaptics) return;
+
+            bool isWindowStruggle = _window != null && _window.IsUnderMonsterAttack && _window.IsGrabbed;
+            bool isDoorStruggle = _door != null && _door.IsUnderMonsterAttack && _door.IsGrabbed;
+
+            if (isWindowStruggle || isDoorStruggle)
+            {
+                _struggleTimer += Time.deltaTime;
+                if (_struggleTimer >= _strugglePulseInterval)
+                {
+                    _struggleTimer = 0f;
+                    float jitter = UnityEngine.Random.Range(-0.04f, 0.04f);
+                    float amp = Mathf.Clamp01((_struggleHapticAmplitude + jitter) * _masterHapticsScale);
+                    TriggerPulse(HapticTargetHand.Both, amp, _strugglePulseDuration);
+                    LogDebug("Haptics: Physical struggle resistance pulse triggered");
+                }
+            }
+            else
+            {
+                _struggleTimer = _strugglePulseInterval;
+            }
         }
 
         private void OnEnable()
