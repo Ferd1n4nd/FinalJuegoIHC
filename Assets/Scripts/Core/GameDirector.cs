@@ -94,7 +94,7 @@ namespace NocturnalBreach.Core
         private void Start()
         {
             ScheduleNextEvent();
-            _nextEventTimer = 30.0f;
+            _nextEventTimer = 15.0f; // First attack strictly starts at 15 seconds
         }
 
         private void Update()
@@ -125,42 +125,43 @@ namespace NocturnalBreach.Core
 
         private void UpdateAmbientLightingProgression()
         {
-            float p = Mathf.Clamp01(_elapsedNightTime / _totalNightDuration);
-
             if (_sunLight == null)
             {
                 var dirLight = GameObject.Find("Directional Light");
                 if (dirLight != null) _sunLight = dirLight.GetComponent<Light>();
             }
 
-            if (_sunLight != null)
-            {
-                // Smoothly evolve the room from midnight to early dawn:
-                // 0.0 - 0.5 (12:00 - 2:30 AM): Pitch black night with cool dim moonlight
-                // 0.5 - 0.8 (2:30 - 4:00 AM): Deep twilight indigo
-                // 0.8 - 0.95 (4:00 - 4:45 AM): Early morning twilight
-                // 0.95 - 1.0 (4:45 - 5:00 AM): Pre-dawn warm horizon
-                Color midnightColor = new Color(0.20f, 0.28f, 0.55f);
-                Color twilightColor = new Color(0.40f, 0.35f, 0.60f);
-                Color preDawnColor = new Color(0.85f, 0.60f, 0.40f);
+            if (_sunLight == null) return;
 
-                if (p < 0.5f)
-                {
-                    _sunLight.color = midnightColor;
-                    _sunLight.intensity = Mathf.Lerp(0.06f, 0.10f, p * 2f);
-                }
-                else if (p < 0.85f)
-                {
-                    float t = (p - 0.5f) / 0.35f;
-                    _sunLight.color = Color.Lerp(midnightColor, twilightColor, t);
-                    _sunLight.intensity = Mathf.Lerp(0.10f, 0.25f, t);
-                }
-                else
-                {
-                    float t = (p - 0.85f) / 0.15f;
-                    _sunLight.color = Color.Lerp(twilightColor, preDawnColor, t);
-                    _sunLight.intensity = Mathf.Lerp(0.25f, 0.55f, t);
-                }
+            // Progressive dawn during the final minute of the night:
+            // 00:00 - 03:00 (0s - 180s): Deep pitch-black night, sun light remains off (intensity 0).
+            // 03:00 - 04:00 (180s - 240s): 60-second progressive sunrise transition entering from north window.
+            // 03:00 (180s): Very subtle beginning (intensity 0.0).
+            // 03:15 (195s): Noticeable near window (intensity ~0.08).
+            // 03:30 (210s): Clearly illuminated floor/room (intensity ~0.24).
+            // 03:45 (225s): Evident morning light extending inward (intensity ~0.40).
+            // 04:00 (240s / 6:00 AM): Reaches early dawn maximum (intensity ~0.48, warm neutral tone).
+            const float dawnStartTime = 180.0f;
+            const float dawnEndTime = 240.0f;
+
+            if (_elapsedNightTime < dawnStartTime)
+            {
+                _sunLight.intensity = 0.0f;
+                _sunLight.enabled = false;
+            }
+            else
+            {
+                if (!_sunLight.enabled) _sunLight.enabled = true;
+
+                float dawnProgress = Mathf.InverseLerp(dawnStartTime, dawnEndTime, _elapsedNightTime);
+                float smoothProgress = Mathf.SmoothStep(0f, 1f, dawnProgress);
+
+                // Early horizon amber/gold to natural early dawn warm neutral
+                Color earlyHorizon = new Color(0.96f, 0.62f, 0.38f);
+                Color earlyDawn = new Color(1.0f, 0.88f, 0.72f);
+
+                _sunLight.color = Color.Lerp(earlyHorizon, earlyDawn, smoothProgress);
+                _sunLight.intensity = Mathf.Lerp(0.0f, 0.48f, smoothProgress);
             }
         }
 
@@ -178,7 +179,7 @@ namespace NocturnalBreach.Core
                 _monsterBrain.ForceRetreatToDormant();
             }
 
-            // Morning dawn transition
+            // Maintain early dawn lighting achieved at 6:00 AM (240s) without sudden brightness spike
             if (_sunLight == null)
             {
                 var dirLight = GameObject.Find("Directional Light");
@@ -187,8 +188,8 @@ namespace NocturnalBreach.Core
 
             if (_sunLight != null)
             {
-                _sunLight.color = new Color(1.0f, 0.90f, 0.72f);
-                _sunLight.intensity = 1.0f;
+                _sunLight.color = new Color(1.0f, 0.88f, 0.72f);
+                _sunLight.intensity = 0.48f;
             }
 
             if (_victoryAudioSource != null && _victoryBellClip != null)
@@ -204,33 +205,16 @@ namespace NocturnalBreach.Core
         {
             _directorState = GameDirectorState.Pacing;
 
-            // 4-minute pacing escalation:
-            // Progress 0.0 - 0.25 (0:00 - 1:00): calm, intervals 16 - 22s
-            // Progress 0.25 - 0.50 (1:00 - 2:00): moderate, intervals 11 - 16s
-            // Progress 0.50 - 0.75 (2:00 - 3:00): tense, intervals 8 - 12s
-            // Progress 0.75 - 1.00 (3:00 - 4:00) FINAL MINUTE ESCALATION:
-            //   3:00 - 3:30 (p: 0.75 - 0.875): fast, intervals 5 - 8s
-            //   3:30 - 4:00 (p: 0.875 - 1.0): frantic climax, intervals 3.5 - 6s
+            // 4-minute progressive difficulty escalation (total 240s):
+            // 00:00 - 01:00 (p: 0.00 - 0.25): lower frequency, intervals ~8 - 10s
+            // 01:00 - 02:00 (p: 0.25 - 0.50): moderate frequency, intervals ~6 - 8s
+            // 02:00 - 03:00 (p: 0.50 - 0.75): high frequency, intervals ~5 - 7s
+            // 03:00 - 04:00 (p: 0.75 - 1.00): peak pressure/climax, intervals ~4 - 6s
             float p = Mathf.Clamp01(_elapsedNightTime / _totalNightDuration);
-            float minI;
-            float maxI;
+            float minI = Mathf.Lerp(8.0f, 4.0f, p);
+            float maxI = Mathf.Lerp(10.0f, 6.0f, p);
 
-            if (p < 0.75f)
-            {
-                // First 3 minutes: controlled pacing
-                float subP = p / 0.75f; // 0 to 1 across first 3 mins
-                minI = Mathf.Lerp(16.0f, 8.0f, subP);
-                maxI = Mathf.Lerp(22.0f, 12.0f, subP);
-            }
-            else
-            {
-                // Final minute (3:00 - 4:00): desperate monster assault
-                float finalP = (p - 0.75f) / 0.25f; // 0 to 1 across final minute
-                minI = Mathf.Lerp(5.0f, 3.5f, finalP);
-                maxI = Mathf.Lerp(8.0f, 5.5f, finalP);
-            }
-
-            _nextEventTimer = UnityEngine.Random.Range(minI, maxI) * 1.20f;
+            _nextEventTimer = UnityEngine.Random.Range(minI, maxI);
         }
 
         private void TriggerNextMonsterEvent()
@@ -270,10 +254,19 @@ namespace NocturnalBreach.Core
         }
 
         /// <summary>
-        /// Selects the next threshold with strict anti-repetition weighting.
+        /// Selects the next threshold.
+        /// The first 3 attacks strictly follow the scripted order:
+        /// 1. Window -> 2. UnderBed -> 3. Door.
+        /// After the 3rd attack (_totalEventsTriggered >= 3), returns to the weighted anti-repetition system.
         /// </summary>
         private MonsterEventThreshold SelectThreshold()
         {
+            // Strict fixed sequence for the first 3 attacks of the night:
+            if (_totalEventsTriggered == 0) return MonsterEventThreshold.Window;
+            if (_totalEventsTriggered == 1) return MonsterEventThreshold.UnderBed;
+            if (_totalEventsTriggered == 2) return MonsterEventThreshold.Door;
+
+            // Subsequent attacks (> 3) use the weighted anti-repetition system:
             float wWeight = _windowWeight;
             float bWeight = _underBedWeight;
             float dWeight = _doorWeight;

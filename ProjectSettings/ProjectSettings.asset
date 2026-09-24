@@ -886,11 +886,11 @@ PlayerSettings:
   activeInputHandler: 2
   windowsGamepadBackendHint: 0
   enableDirectStorage: 0
-  cloudProjectId: 12e043c9-46f1-45a3-b8ae-acf2a21f8274
+  cloudProjectId: 3d310448-0179-484c-8c57-69e7bcbd8e95
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
   projectName: FinalJuegoIHC
-  organizationId: unity_70519843
+  organizationId: fersusgamer
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
   hmiLoadingImage: {fileID: 0}

@@ -151,49 +151,62 @@ namespace NocturnalBreach.Core
                 bloodOverlay.transform.SetParent(cam.transform, false);
                 bloodOverlay.transform.localPosition = new Vector3(0f, 0f, 0.20f);
                 bloodOverlay.transform.localRotation = Quaternion.identity;
-                bloodOverlay.transform.localScale = new Vector3(1.4f, 1.1f, 1.0f);
+                bloodOverlay.transform.localScale = new Vector3(3.0f, 2.5f, 1.0f);
             }
 
-            // Transparent URP Unlit Material for blood overlay (renderQueue = 3000)
+            // URP Unlit Material for death background overlay (pure black background for Game Over)
             var urpUnlit = Shader.Find("Universal Render Pipeline/Unlit");
             Material bloodMat = new Material(urpUnlit != null ? urpUnlit : Shader.Find("Unlit/Color"));
-            bloodMat.SetFloat("_Surface", 1f); // Transparent
+            bloodMat.SetFloat("_Surface", 1f); // Transparent for initial surge
             bloodMat.SetFloat("_Blend", 0f);   // Alpha blend
             bloodMat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
             bloodMat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
             bloodMat.SetInt("_ZWrite", 0);
             bloodMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
             bloodMat.renderQueue = 3000;
+            if (bloodMat.HasProperty("_BaseMap")) bloodMat.SetTexture("_BaseMap", Texture2D.blackTexture);
+            bloodMat.mainTexture = Texture2D.blackTexture;
             bloodMat.SetColor("_BaseColor", new Color(0.70f, 0.02f, 0.02f, 0f));
+            bloodMat.SetColor("_Color", new Color(0.70f, 0.02f, 0.02f, 0f));
+            bloodMat.color = new Color(0.70f, 0.02f, 0.02f, 0f);
             bloodOverlay.GetComponent<MeshRenderer>().sharedMaterial = bloodMat;
 
             float bloodElapsed = 0f;
             float surgeDuration = 0.18f;
-            Color deepBlood = new Color(0.75f, 0.02f, 0.02f, 0.92f);
+            Color deepBlood = new Color(0.75f, 0.02f, 0.02f, 0.95f);
 
             // Fast blood surge
             while (bloodElapsed < surgeDuration)
             {
                 bloodElapsed += Time.deltaTime;
                 float t = Mathf.Clamp01(bloodElapsed / surgeDuration);
-                bloodMat.SetColor("_BaseColor", new Color(deepBlood.r, deepBlood.g, deepBlood.b, t * 0.92f));
+                Color c = new Color(deepBlood.r, deepBlood.g, deepBlood.b, t * 0.95f);
+                bloodMat.SetColor("_BaseColor", c);
+                bloodMat.SetColor("_Color", c);
+                bloodMat.color = c;
                 yield return null;
             }
 
-            // Fade into dark ominous crimson/black
+            // Fade into pure solid black background for Game Over
             float fadeElapsed = 0f;
             float fadeDuration = 0.85f;
-            Color darkCrimson = new Color(0.04f, 0.005f, 0.005f, 0.98f);
+            Color solidBlack = new Color(0.0f, 0.0f, 0.0f, 1.0f);
 
             while (fadeElapsed < fadeDuration)
             {
                 fadeElapsed += Time.deltaTime;
                 float t = Mathf.Clamp01(fadeElapsed / fadeDuration);
-                bloodMat.SetColor("_BaseColor", Color.Lerp(deepBlood, darkCrimson, t));
+                Color c = Color.Lerp(deepBlood, solidBlack, t);
+                bloodMat.SetColor("_BaseColor", c);
+                bloodMat.SetColor("_Color", c);
+                bloodMat.color = c;
                 yield return null;
             }
 
-            bloodMat.SetColor("_BaseColor", darkCrimson);
+            // Ensure 100% solid, pure black background behind GAME OVER
+            bloodMat.SetColor("_BaseColor", Color.black);
+            bloodMat.SetColor("_Color", Color.black);
+            bloodMat.color = Color.black;
 
             // =========================================================
             // FASE 3 — GAME OVER (Renderizado garantizado por encima de todo)

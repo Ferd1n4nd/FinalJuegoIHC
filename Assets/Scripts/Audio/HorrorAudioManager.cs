@@ -69,6 +69,24 @@ namespace NocturnalBreach.Audio
         [SerializeField] private AudioClip _monsterAggressionGrowlClip;
         [SerializeField] private AudioClip _monsterRecoilClip;
 
+        [Header("Monster Stalking Audio (Inspector Configurable)")]
+        [Tooltip("Ambient monster footsteps heard pacing or creeping around outside.")]
+        [SerializeField] private AudioClip[] _stalkingFootstepsClips;
+        [Tooltip("Subtle breathing, hissing, or rasping of the creature lurking nearby.")]
+        [SerializeField] private AudioClip[] _stalkingBreathingClips;
+        [Tooltip("Distant creature screeches, shrieks, or wails.")]
+        [SerializeField] private AudioClip[] _stalkingScreechesClips;
+        [Tooltip("Low menacing growls or guttural snarls.")]
+        [SerializeField] private AudioClip[] _stalkingGrowlsClips;
+        [Tooltip("Unsettling ambient monster cues (metallic scratches, wood creaks, distant thuds).")]
+        [SerializeField] private AudioClip[] _stalkingAmbientClips;
+
+        [Header("Stalking Timing & Atmosphere")]
+        [Tooltip("Enable dynamic ambient stalking audio around the bedroom.")]
+        [SerializeField] private bool _enableAmbientStalking = true;
+        [Tooltip("Master volume scale for ambient stalking cues (0.0 to 1.0).")]
+        [Range(0.1f, 1f)] [SerializeField] private float _stalkingVolume = 0.85f;
+
         [Header("Prop Audio Clips")]
         [SerializeField] private AudioClip _flashlightSwitchOnClick;
         [SerializeField] private AudioClip _flashlightSwitchOffClick;
@@ -92,15 +110,132 @@ namespace NocturnalBreach.Audio
         private void Start()
         {
             StartAmbience();
+            ScheduleNextStalkingInterval();
         }
 
         private float _targetAmbienceVolume = 0.35f;
+        private float _stalkingTimer = 0f;
+        private float _nextStalkingInterval = 14f;
 
         private void Update()
         {
             if (_ambienceAudioSource != null)
             {
                 _ambienceAudioSource.volume = Mathf.MoveTowards(_ambienceAudioSource.volume, _targetAmbienceVolume * _masterVolume, Time.deltaTime * 0.25f);
+            }
+
+            UpdateAmbientStalking();
+        }
+
+        private void ScheduleNextStalkingInterval()
+        {
+            float elapsed = 0f;
+            float total = 240f;
+            var director = FindAnyObjectByType<NocturnalBreach.Core.GameDirector>();
+            if (director != null)
+            {
+                elapsed = director.ElapsedNightTime;
+                total = director.TotalNightDuration;
+            }
+            else
+            {
+                elapsed = Time.timeSinceLevelLoad;
+            }
+
+            float p = Mathf.Clamp01(elapsed / total);
+
+            // Progressive interval: spacious early on, slightly more frequent later without spam:
+            // 00:00 - 01:30 (p < 0.375): 14 - 22 seconds
+            // 01:30 - 03:00 (p < 0.75): 10 - 16 seconds
+            // 03:00 - 04:00 (p >= 0.75): 7 - 12 seconds
+            float minI = Mathf.Lerp(14f, 7f, p);
+            float maxI = Mathf.Lerp(22f, 12f, p);
+            _nextStalkingInterval = UnityEngine.Random.Range(minI, maxI);
+            _stalkingTimer = 0f;
+        }
+
+        private void UpdateAmbientStalking()
+        {
+            if (!_enableAmbientStalking) return;
+
+            // Do not play ambient cues if monster is actively breaching
+            if (_monsterBrain != null && _monsterBrain.CurrentState == MonsterState.Breached) return;
+
+            _stalkingTimer += Time.deltaTime;
+            if (_stalkingTimer >= _nextStalkingInterval)
+            {
+                TriggerAmbientStalkingCue();
+                ScheduleNextStalkingInterval();
+            }
+        }
+
+        private void TriggerAmbientStalkingCue()
+        {
+            // Pick a random category: 0=Footsteps, 1=Breathing, 2=Screeches, 3=Growls, 4=Ambient
+            int category = UnityEngine.Random.Range(0, 5);
+            AudioClip clipToPlay = null;
+            float vol = _stalkingVolume * _sfxVolume;
+
+            switch (category)
+            {
+                case 0: // Stalking Footsteps
+                    clipToPlay = GetRandomClipOrFallback(_stalkingFootstepsClips, _doorApproachFootstepsClips, _windowStalkingClip);
+                    vol *= 0.85f;
+                    break;
+                case 1: // Stalking Breathing
+                    clipToPlay = GetRandomClipOrFallback(_stalkingBreathingClips, null, _monsterIdleBreathingClip);
+                    if (clipToPlay == null) clipToPlay = _underBedBreathingClip;
+                    vol *= 0.90f;
+                    break;
+                case 2: // Stalking Screeches
+                    clipToPlay = GetRandomClipOrFallback(_stalkingScreechesClips, null, _monsterAggressionGrowlClip);
+                    vol *= 0.90f;
+                    break;
+                case 3: // Stalking Growls
+                    clipToPlay = GetRandomClipOrFallback(_stalkingGrowlsClips, null, _monsterAggressionGrowlClip);
+                    vol *= 0.90f;
+                    break;
+                case 4: // Stalking Ambient / Creaks
+                    clipToPlay = GetRandomClipOrFallback(_stalkingAmbientClips, _houseCreakClips, _doorCreakClip);
+                    vol *= 0.80f;
+                    break;
+            }
+
+            if (clipToPlay == null) return;
+
+            AudioSource targetSource = SelectStalkingAudioSource();
+            if (targetSource != null)
+            {
+                targetSource.PlayOneShot(clipToPlay, Mathf.Clamp01(vol * _masterVolume));
+                LogDebug($"Audio: Ambient stalking cue played [{clipToPlay.name}] from {targetSource.gameObject.name}");
+            }
+        }
+
+        private AudioClip GetRandomClipOrFallback(AudioClip[] primaryClips, AudioClip[] secondaryClips, AudioClip fallbackSingle)
+        {
+            if (primaryClips != null && primaryClips.Length > 0)
+            {
+                var valid = System.Array.FindAll(primaryClips, c => c != null);
+                if (valid.Length > 0) return valid[UnityEngine.Random.Range(0, valid.Length)];
+            }
+            if (secondaryClips != null && secondaryClips.Length > 0)
+            {
+                var valid = System.Array.FindAll(secondaryClips, c => c != null);
+                if (valid.Length > 0) return valid[UnityEngine.Random.Range(0, valid.Length)];
+            }
+            return fallbackSingle;
+        }
+
+        private AudioSource SelectStalkingAudioSource()
+        {
+            // Spatialise sounds around the room using true 3D sources
+            int pick = UnityEngine.Random.Range(0, 4);
+            switch (pick)
+            {
+                case 0: return _monsterAudioSource != null ? _monsterAudioSource : _doorAudioSource;
+                case 1: return _doorAudioSource != null ? _doorAudioSource : _monsterAudioSource;
+                case 2: return _propsAudioSource != null ? _propsAudioSource : _underBedAudioSource;
+                default: return _underBedAudioSource != null ? _underBedAudioSource : _monsterAudioSource;
             }
         }
 
@@ -262,7 +397,7 @@ namespace NocturnalBreach.Audio
             _targetAmbienceVolume = _ambienceVolume * 1.6f;
             if (_windowAudioSource != null && _windowStalkingClip != null)
             {
-                PlayClip(_windowAudioSource, _windowStalkingClip, 0.7f * _sfxVolume, false);
+                PlayClip(_windowAudioSource, _windowStalkingClip, 0.85f * _sfxVolume, false);
             }
         }
 
@@ -270,17 +405,17 @@ namespace NocturnalBreach.Audio
         {
             LogDebug("Audio: Monster at window");
             _targetAmbienceVolume = _ambienceVolume * 1.8f;
-            PlayRandomClip(_windowAudioSource, _windowGlassScratchClips, 0.9f * _sfxVolume);
+            PlayRandomClip(_windowAudioSource, _windowGlassScratchClips, 0.95f * _sfxVolume);
             if (_monsterAudioSource != null && _monsterAggressionGrowlClip != null)
             {
-                PlayClip(_monsterAudioSource, _monsterAggressionGrowlClip, 0.6f * _sfxVolume, false);
+                PlayClip(_monsterAudioSource, _monsterAggressionGrowlClip, 0.85f * _sfxVolume, false);
             }
         }
 
         private void HandleWindowGlassContact()
         {
             LogDebug("Audio: Window glass contact/tap");
-            PlayRandomClip(_windowAudioSource, _windowGlassTapClips, 0.85f * _sfxVolume);
+            PlayRandomClip(_windowAudioSource, _windowGlassTapClips, 0.95f * _sfxVolume);
         }
 
         private void HandleWindowDefenseSuccess()
@@ -292,7 +427,7 @@ namespace NocturnalBreach.Audio
             {
                 _windowAudioSource.PlayOneShot(_windowMonsterReactionClip, 1.0f * _sfxVolume);
             }
-            PlayRandomClip(_windowAudioSource, _windowRetreatClips, 0.75f * _sfxVolume);
+            PlayRandomClip(_windowAudioSource, _windowRetreatClips, 0.85f * _sfxVolume);
         }
 
         private void HandleWindowPhysicalClosed()
@@ -300,7 +435,7 @@ namespace NocturnalBreach.Audio
             LogDebug("Audio: Window physically closed");
             if (_propsAudioSource != null && _windowCloseLatchClip != null)
             {
-                PlayClip(_propsAudioSource, _windowCloseLatchClip, 0.8f * _sfxVolume, false);
+                PlayClip(_propsAudioSource, _windowCloseLatchClip, 0.85f * _sfxVolume, false);
             }
         }
 
@@ -312,10 +447,10 @@ namespace NocturnalBreach.Audio
         {
             LogDebug("Audio: Monster under bed crawling/breathing");
             _targetAmbienceVolume = _ambienceVolume * 1.6f;
-            PlayRandomClip(_underBedAudioSource, _underBedCrawlingClips, 0.8f * _sfxVolume);
+            PlayRandomClip(_underBedAudioSource, _underBedCrawlingClips, 0.90f * _sfxVolume);
             if (_underBedAudioSource != null && _underBedBreathingClip != null)
             {
-                PlayClip(_underBedAudioSource, _underBedBreathingClip, 0.65f * _sfxVolume, true);
+                PlayClip(_underBedAudioSource, _underBedBreathingClip, 0.85f * _sfxVolume, true);
             }
         }
 
@@ -340,7 +475,7 @@ namespace NocturnalBreach.Audio
             }
             if (_underBedAudioSource != null && _underBedRetreatClip != null)
             {
-                PlayClip(_underBedAudioSource, _underBedRetreatClip, 0.8f * _sfxVolume, false);
+                PlayClip(_underBedAudioSource, _underBedRetreatClip, 0.85f * _sfxVolume, false);
             }
         }
 
@@ -352,7 +487,7 @@ namespace NocturnalBreach.Audio
         {
             LogDebug("Audio: Monster approaching door down hallway");
             _targetAmbienceVolume = _ambienceVolume * 1.6f;
-            PlayRandomClip(_doorAudioSource, _doorApproachFootstepsClips, 0.75f * _sfxVolume);
+            PlayRandomClip(_doorAudioSource, _doorApproachFootstepsClips, 0.88f * _sfxVolume);
         }
 
         private void HandleMonsterAtDoor()
@@ -361,7 +496,7 @@ namespace NocturnalBreach.Audio
             _targetAmbienceVolume = _ambienceVolume * 1.8f;
             if (_doorAudioSource != null && _doorHandleRattleClip != null)
             {
-                PlayClip(_doorAudioSource, _doorHandleRattleClip, 0.85f * _sfxVolume, false);
+                PlayClip(_doorAudioSource, _doorHandleRattleClip, 0.95f * _sfxVolume, false);
             }
         }
 
@@ -378,9 +513,9 @@ namespace NocturnalBreach.Audio
             StopSource(_doorAudioSource);
             if (_doorAudioSource != null && _doorDefenseSuccessClip != null)
             {
-                _doorAudioSource.PlayOneShot(_doorDefenseSuccessClip, 0.9f * _sfxVolume);
+                _doorAudioSource.PlayOneShot(_doorDefenseSuccessClip, 0.95f * _sfxVolume);
             }
-            PlayRandomClip(_doorAudioSource, _doorRetreatFootstepsClips, 0.7f * _sfxVolume);
+            PlayRandomClip(_doorAudioSource, _doorRetreatFootstepsClips, 0.85f * _sfxVolume);
         }
 
         private void HandleDoorPhysicalClosed()
