@@ -205,6 +205,12 @@ namespace NocturnalBreach.Haptics
             LogDebug("Haptics: Door impact pulse triggered");
         }
 
+        public void TriggerLockedDoorResistance(HapticTargetHand hand)
+        {
+            TriggerPulse(hand, 0.45f * _masterHapticsScale, 0.08f);
+            LogDebug("Haptics: Locked door resistance pulse triggered");
+        }
+
         private void HandleDoorDefenseSuccess()
         {
             // Gentle success confirmation

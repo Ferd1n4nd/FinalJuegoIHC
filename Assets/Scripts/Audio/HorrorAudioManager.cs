@@ -63,6 +63,8 @@ namespace NocturnalBreach.Audio
         [SerializeField] private AudioClip _doorBreachClip;
         [SerializeField] private AudioClip _doorDefenseSuccessClip;
         [SerializeField] private AudioClip[] _doorRetreatFootstepsClips;
+        [Tooltip("Audio played when the player tries to force open the locked bedroom door.")]
+        [SerializeField] private AudioClip _doorLockedSlamClip;
 
         [Header("Monster Creature Audio Clips")]
         [SerializeField] private AudioClip _monsterIdleBreathingClip;
@@ -178,9 +180,9 @@ namespace NocturnalBreach.Audio
 
             switch (category)
             {
-                case 0: // Stalking Footsteps
+                case 0: // Stalking Footsteps - increased moderately for clear presence without clipping
                     clipToPlay = GetRandomClipOrFallback(_stalkingFootstepsClips, _doorApproachFootstepsClips, _windowStalkingClip);
-                    vol *= 0.85f;
+                    vol *= 1.0f;
                     break;
                 case 1: // Stalking Breathing
                     clipToPlay = GetRandomClipOrFallback(_stalkingBreathingClips, null, _monsterIdleBreathingClip);
@@ -527,6 +529,15 @@ namespace NocturnalBreach.Audio
             }
         }
 
+        public void PlayLockedDoorAttempt()
+        {
+            if (_doorAudioSource != null && _doorLockedSlamClip != null)
+            {
+                _doorAudioSource.PlayOneShot(_doorLockedSlamClip, 0.90f * _sfxVolume * _masterVolume);
+                LogDebug("Audio: Locked door attempt slam SFX played");
+            }
+        }
+
         #endregion
 
         #region Common Monster & Global Handlers
@@ -544,15 +555,6 @@ namespace NocturnalBreach.Audio
         private void HandleMonsterBreached(MonsterEventThreshold threshold)
         {
             LogDebug("Audio: Monster breached at " + threshold);
-            AudioSource targetSource = _monsterAudioSource;
-            if (threshold == MonsterEventThreshold.Door) targetSource = _doorAudioSource;
-            else if (threshold == MonsterEventThreshold.Window) targetSource = _windowAudioSource;
-            else if (threshold == MonsterEventThreshold.UnderBed) targetSource = _underBedAudioSource;
-
-            if (targetSource != null && _doorBreachClip != null)
-            {
-                PlayClip(targetSource, _doorBreachClip, 1.0f * _sfxVolume, false);
-            }
         }
 
         private void HandleFlashlightToggled(bool isOn)

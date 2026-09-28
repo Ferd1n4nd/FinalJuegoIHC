@@ -115,6 +115,12 @@ namespace NocturnalBreach.Core
 
             if (_directorState == GameDirectorState.Pacing)
             {
+                // Once 90 seconds (1:30) have elapsed, clamp any active pacing wait to 2 - 6 seconds if it exceeded that
+                if (_elapsedNightTime >= 90.0f && _nextEventTimer > 6.0f)
+                {
+                    _nextEventTimer = UnityEngine.Random.Range(2.0f, 6.0f);
+                }
+
                 _nextEventTimer -= Time.deltaTime;
                 if (_nextEventTimer <= 0f)
                 {
@@ -148,6 +154,7 @@ namespace NocturnalBreach.Core
             {
                 _sunLight.intensity = 0.0f;
                 _sunLight.enabled = false;
+                RenderSettings.ambientLight = Color.black;
             }
             else
             {
@@ -161,7 +168,11 @@ namespace NocturnalBreach.Core
                 Color earlyDawn = new Color(1.0f, 0.88f, 0.72f);
 
                 _sunLight.color = Color.Lerp(earlyHorizon, earlyDawn, smoothProgress);
-                _sunLight.intensity = Mathf.Lerp(0.0f, 0.48f, smoothProgress);
+                _sunLight.intensity = Mathf.Lerp(0.0f, 0.55f, smoothProgress);
+
+                // Subtle indirect room fill reflecting window sunlight across floor, bed, walls and ceiling
+                Color ambientDawnColor = new Color(0.18f, 0.14f, 0.11f);
+                RenderSettings.ambientLight = Color.Lerp(Color.black, ambientDawnColor, smoothProgress);
             }
         }
 
@@ -189,8 +200,10 @@ namespace NocturnalBreach.Core
             if (_sunLight != null)
             {
                 _sunLight.color = new Color(1.0f, 0.88f, 0.72f);
-                _sunLight.intensity = 0.48f;
+                _sunLight.intensity = 0.55f;
             }
+
+            RenderSettings.ambientLight = new Color(0.18f, 0.14f, 0.11f);
 
             if (_victoryAudioSource != null && _victoryBellClip != null)
             {
@@ -205,11 +218,16 @@ namespace NocturnalBreach.Core
         {
             _directorState = GameDirectorState.Pacing;
 
+            // After 90 seconds (1 minute and a half), wait randomly between 2 and 6 seconds before next attack
+            if (_elapsedNightTime >= 90.0f)
+            {
+                _nextEventTimer = UnityEngine.Random.Range(2.0f, 6.0f);
+                return;
+            }
+
             // 4-minute progressive difficulty escalation (total 240s):
             // 00:00 - 01:00 (p: 0.00 - 0.25): lower frequency, intervals ~8 - 10s
-            // 01:00 - 02:00 (p: 0.25 - 0.50): moderate frequency, intervals ~6 - 8s
-            // 02:00 - 03:00 (p: 0.50 - 0.75): high frequency, intervals ~5 - 7s
-            // 03:00 - 04:00 (p: 0.75 - 1.00): peak pressure/climax, intervals ~4 - 6s
+            // 01:00 - 01:30 (p: 0.25 - 0.375): moderate frequency, intervals ~6 - 8s
             float p = Mathf.Clamp01(_elapsedNightTime / _totalNightDuration);
             float minI = Mathf.Lerp(8.0f, 4.0f, p);
             float maxI = Mathf.Lerp(10.0f, 6.0f, p);

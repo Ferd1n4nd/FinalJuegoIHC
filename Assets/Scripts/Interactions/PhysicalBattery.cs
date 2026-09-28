@@ -41,6 +41,8 @@ namespace NocturnalBreach.Interactions
             _grabbable = GetComponent<Grabbable>();
             _collider = GetComponent<Collider>();
 
+            IgnorePlayerKickCollision();
+
             if (_rigidbody != null)
             {
                 _rigidbody.mass = 0.05f;
@@ -69,6 +71,34 @@ namespace NocturnalBreach.Interactions
                 {
                     _rigidbody.useGravity = true;
                     _rigidbody.isKinematic = false;
+                }
+            }
+        }
+
+        private void Start()
+        {
+            IgnorePlayerKickCollision();
+        }
+
+        private void IgnorePlayerKickCollision()
+        {
+            // Specifically exclude PhysicalBattery colliders from PlayerPhysicalKick and character body pushing.
+            // Finds the player capsule collider and sets Physics.IgnoreCollision so the player walking
+            // through or near the battery never imparts artificial kick forces or physics displacement,
+            // while preserving full normal collisions with the floor, furniture, walls, and flashlight.
+            var player = GameObject.Find("[BuildingBlock] Camera Rig/OVRComprehensiveInteractionRig/Locomotor/PlayerController");
+            if (player != null)
+            {
+                var playerCols = player.GetComponentsInChildren<Collider>(true);
+                var myCols = GetComponentsInChildren<Collider>(true);
+                foreach (var pCol in playerCols)
+                {
+                    if (pCol == null) continue;
+                    foreach (var myCol in myCols)
+                    {
+                        if (myCol == null) continue;
+                        Physics.IgnoreCollision(pCol, myCol, true);
+                    }
                 }
             }
         }
@@ -128,18 +158,54 @@ namespace NocturnalBreach.Interactions
                 }
             }
 
-            // Check distance to the active flashlight in the scene
+            // Check proximity to the active flashlight in the scene
             var flashlight = PhysicalFlashlight.Instance;
+            if (flashlight == null) flashlight = FindAnyObjectByType<PhysicalFlashlight>();
             if (flashlight == null) return;
 
-            float dist = Vector3.Distance(transform.position, flashlight.transform.position);
+            // Accurate geometric detection: check distance to closest point on flashlight collider surface
+            var flCol = flashlight.GetComponent<Collider>();
+            float dist = (flCol != null)
+                ? Vector3.Distance(transform.position, flCol.ClosestPoint(transform.position))
+                : Vector3.Distance(transform.position, flashlight.transform.position);
+
             if (dist <= _insertionRadius)
             {
-                // If flashlight needs recharge (or player is placing battery near flashlight)
-                if (flashlight.CurrentBattery < 99f)
-                {
-                    InsertIntoFlashlight(flashlight);
-                }
+                TryInsert(flashlight);
+            }
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            CheckFlashlightContact(collision.gameObject);
+        }
+
+        private void OnCollisionStay(Collision collision)
+        {
+            CheckFlashlightContact(collision.gameObject);
+        }
+
+        private void CheckFlashlightContact(GameObject hitObj)
+        {
+            if (_isConsumed || hitObj == null) return;
+            var flashlight = PhysicalFlashlight.Instance;
+            if (flashlight == null) flashlight = FindAnyObjectByType<PhysicalFlashlight>();
+            if (flashlight == null) return;
+
+            if (hitObj == flashlight.gameObject || hitObj.transform.IsChildOf(flashlight.transform))
+            {
+                TryInsert(flashlight);
+            }
+        }
+
+        private void TryInsert(PhysicalFlashlight flashlight)
+        {
+            if (_isConsumed || flashlight == null) return;
+
+            // Recharges if flashlight battery is below 99% or if in scene initial overcharge state (>100%)
+            if (flashlight.CurrentBattery < 99f || flashlight.CurrentBattery > 100f)
+            {
+                InsertIntoFlashlight(flashlight);
             }
         }
 

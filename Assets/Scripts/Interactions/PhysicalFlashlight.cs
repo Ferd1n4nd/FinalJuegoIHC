@@ -17,7 +17,7 @@ namespace NocturnalBreach.Interactions
         [Header("Light Settings")]
         [SerializeField] private Light _spotLight;
         [SerializeField] private bool _startsOn = false;
-        [SerializeField] private float _baseIntensity = 2.5f;
+        [SerializeField] private float _baseIntensity = 4.5f;
 
         [Header("Diegetic Battery Indicator")]
         [Tooltip("MeshRenderers for the 3 battery status LEDs on the flashlight barrel.")]
@@ -30,8 +30,8 @@ namespace NocturnalBreach.Interactions
         [SerializeField] private float _currentBattery = 100f;
         [Tooltip("Battery drain per second while turned on (~200 seconds full life).")]
         [SerializeField] private float _batteryDrainRate = 0.5f;
-        [Tooltip("Threshold percentage below which light flickers (e.g. 25%).")]
-        [SerializeField] private float _lowBatteryThreshold = 25f;
+        [Tooltip("Threshold percentage below which light flickers (begins subtly at 20%).")]
+        [SerializeField] private float _lowBatteryThreshold = 20f;
 
         [Header("Physical Switch Visual")]
         [SerializeField] private Transform _switchTransform;
@@ -70,6 +70,30 @@ namespace NocturnalBreach.Interactions
 
             ConfigureLight();
             SetLightState(_startsOn);
+            IgnorePlayerKickCollision();
+        }
+
+        private void IgnorePlayerKickCollision()
+        {
+            // Specifically exclude Flashlight_VR from PlayerPhysicalKick and character body pushing.
+            // Finds the player capsule collider and sets Physics.IgnoreCollision so the player walking
+            // through the flashlight never imparts artificial kick forces or physics displacement,
+            // while preserving full normal collisions with the floor, furniture, and hands.
+            var player = GameObject.Find("[BuildingBlock] Camera Rig/OVRComprehensiveInteractionRig/Locomotor/PlayerController");
+            if (player != null)
+            {
+                var playerCols = player.GetComponentsInChildren<Collider>(true);
+                var myCols = GetComponentsInChildren<Collider>(true);
+                foreach (var pCol in playerCols)
+                {
+                    if (pCol == null) continue;
+                    foreach (var myCol in myCols)
+                    {
+                        if (myCol == null) continue;
+                        Physics.IgnoreCollision(pCol, myCol, true);
+                    }
+                }
+            }
         }
 
         private void OnDestroy()
@@ -209,13 +233,33 @@ namespace NocturnalBreach.Interactions
         {
             if (_spotLight == null) return;
 
+            // Progressive flicker severity:
+            // At 20% battery: very subtle, rare micro-dip (severity ~0.0)
+            // At 10% battery: moderate noticeable flicker (severity ~0.5)
+            // Near 0% battery: prominent, erratic dying flicker (severity ~1.0)
+            float severity = Mathf.Clamp01((_lowBatteryThreshold - _currentBattery) / _lowBatteryThreshold);
+
             _flickerTimer += Time.deltaTime;
-            if (_flickerTimer > 0.08f)
+            // Interval becomes progressively tighter/faster as battery drains
+            float checkInterval = Mathf.Lerp(0.35f, 0.05f, severity);
+
+            if (_flickerTimer > checkInterval)
             {
                 _flickerTimer = 0f;
-                // Subtle flicker between 30% and 90% intensity
-                float factor = UnityEngine.Random.Range(0.3f, 0.9f);
-                _spotLight.intensity = _baseIntensity * factor;
+
+                // Probability of flicker dip increases with severity
+                float flickerChance = Mathf.Lerp(0.20f, 0.85f, severity);
+                if (UnityEngine.Random.value < flickerChance)
+                {
+                    // Minimum intensity drops lower as battery dies
+                    float minFactor = Mathf.Lerp(0.70f, 0.15f, severity);
+                    float factor = UnityEngine.Random.Range(minFactor, 0.95f);
+                    _spotLight.intensity = _baseIntensity * factor;
+                }
+                else
+                {
+                    _spotLight.intensity = _baseIntensity;
+                }
             }
         }
 
@@ -224,9 +268,10 @@ namespace NocturnalBreach.Interactions
             if (_spotLight != null)
             {
                 _spotLight.type = LightType.Spot;
-                _spotLight.range = 7.0f;
-                _spotLight.spotAngle = 40.0f;
-                _spotLight.innerSpotAngle = 25.0f;
+                _spotLight.range = 7.5f;
+                // Beam hierarchy: concentrated intense core (10 inner) surrounded by a tight focused cone (22 outer)
+                _spotLight.innerSpotAngle = 10.0f;
+                _spotLight.spotAngle = 22.0f;
                 _spotLight.shadows = LightShadows.None; // Quest 2 fill-rate friendly
                 _spotLight.color = new Color(1.0f, 0.96f, 0.88f);
                 _spotLight.intensity = _baseIntensity;
